@@ -224,28 +224,48 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Create a README file with the problem statement
     const readmePath = `${platform}/${category}/${sanitizedProblemName}_README.md`;
-    const readmeContent = `# ${problemName}\n\n## Problem Statement\n\n${problemStatement}\n\n## Solution\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+    const readmeContent = `# ${problemName}\n\n## Problem Statement\n\n${problemStatement || 'No problem statement available.'}\n\n## Solution\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
     
     // Create commit message
     const commitMessage = `Add solution for ${problemName} from ${platform}`;
     
     // GitHub API endpoint for creating or updating a file
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-    const readmeApiUrl = `https://api.github.com/repos/${repo}/contents/${readmePath}`;
     
-    // First save the solution file
-    fetch(apiUrl, {
-      method: 'PUT',
+    // First check if the repository exists and is accessible
+    fetch(`https://api.github.com/repos/${repo}`, {
       headers: {
         'Authorization': `token ${token}`,
-        'Content-Type': 'application/json',
         'Accept': 'application/vnd.github.v3+json'
-      },
-      body: JSON.stringify({
-        message: commitMessage,
-        content: btoa(unescape(encodeURIComponent(code))), // Base64 encode the content
-        branch: branch
-      })
+      }
+    })
+    .then(response => {
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Repository not found. Please check the repository name.');
+        } else if (response.status === 403) {
+          throw new Error('Access forbidden. Please check your token has the "repo" scope.');
+        } else {
+          throw new Error(`GitHub API error: ${response.status}`);
+        }
+      }
+      return response.json();
+    })
+    .then(() => {
+      // Now save the solution file
+      return fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github.v3+json'
+        },
+        body: JSON.stringify({
+          message: commitMessage,
+          content: btoa(unescape(encodeURIComponent(code))), // Base64 encode the content
+          branch: branch
+        })
+      });
     })
     .then(response => {
       if (!response.ok) {
@@ -255,6 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(data => {
       // Now save the README with problem statement
+      const readmeApiUrl = `https://api.github.com/repos/${repo}/contents/${readmePath}`;
       return fetch(readmeApiUrl, {
         method: 'PUT',
         headers: {
