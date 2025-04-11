@@ -1,0 +1,107 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  width: 350px;
+  margin: 0;
+  padding: 0;
+  background-color: #f5f8fa;
+}
+
+.container {
+  padding: 15px;
+}
+
+h1 {
+  font-size: 18px;
+  color: #24292e;
+  margin-top: 0;
+  text-align: center;
+  border-bottom: 1px solid #e1e4e8;
+  padding-bottom: 10px;
+}
+
+h2 {
+  font-size: 16px;
+  color: #24292e;
+  margin-top: 15px;
+  margin-bottom: 10px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+input, select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d1d5da;
+  border-radius: 3px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+button {
+  background-color: #2ea44f;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  width: 100%;
+  margin-top: 5px;
+}
+
+button:hover {
+  background-color: #2c974b;
+}
+
+#github-logout {
+  background-color: #d73a49;
+}
+
+#github-logout:hover {
+  background-color: #cb2431;
+}
+
+#status-message {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 3px;
+  font-size: 14px;
+  display: none;
+}
+
+.success {
+  background-color: #dcffe4;
+  color: #22863a;
+  border: 1px solid #34d058;
+  display: block !important;
+}
+
+.error {
+  background-color: #ffeef0;
+  color: #cb2431;
+  border: 1px solid #d73a49;
+  display: block !important;
+}
+
+#problem-info {
+  background-color: #f1f8ff;
+  padding: 10px;
+  border-radius: 3px;
+  margin-bottom: 15px;
+  border: 1px solid #c8e1ff;
+}
+
+#problem-info p {
+  margin: 5px 0;
+  font-size: 14px;
+}

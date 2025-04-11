@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Code Solutions GitHub Saver",
+  "version": "1.0.0",
+  "description": "Save your accepted coding solutions from LeetCode, GFG, CodeForces, and CodeChef directly to your GitHub repository",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "https://practice.geeksforgeeks.org/*",
+    "https://codeforces.com/*",
+    "https://www.codechef.com/*",
+    "https://api.github.com/*"
+  ],
+  "background": {
+    "service_worker": "js/background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://leetcode.com/problems/*",
+        "https://practice.geeksforgeeks.org/problems/*",
+        "https://codeforces.com/problemset/problem/*",
+        "https://www.codechef.com/problems/*"
+      ],
+      "js": ["js/content.js"]
+    }
+  ],
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  }
+}

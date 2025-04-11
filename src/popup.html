@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Code Solutions GitHub Saver</title>
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Code Solutions Saver</h1>
+    
+    <div id="login-section">
+      <h2>GitHub Authentication</h2>
+      <div id="not-logged-in">
+        <p>Connect to your GitHub account to save solutions</p>
+        <button id="github-login">Connect to GitHub</button>
+      </div>
+      <div id="logged-in" style="display: none;">
+        <p>Connected as: <span id="github-username"></span></p>
+        <button id="github-logout">Disconnect</button>
+      </div>
+    </div>
+
+    <div id="repo-section" style="display: none;">
+      <h2>Repository Settings</h2>
+      <div class="form-group">
+        <label for="repo-name">Repository Name:</label>
+        <input type="text" id="repo-name" placeholder="username/repository">
+      </div>
+      <div class="form-group">
+        <label for="branch-name">Branch Name:</label>
+        <input type="text" id="branch-name" placeholder="main">
+      </div>
+      <button id="save-repo-settings">Save Settings</button>
+    </div>
+
+    <div id="solution-section" style="display: none;">
+      <h2>Save Current Solution</h2>
+      <div id="problem-info">
+        <p>Platform: <span id="platform"></span></p>
+        <p>Problem: <span id="problem-name"></span></p>
+        <p>Language: <span id="language"></span></p>
+      </div>
+      
+      <div class="form-group">
+        <label for="category">Category:</label>
+        <select id="category">
+          <option value="arrays">Arrays</option>
+          <option value="strings">Strings</option>
+          <option value="linked-lists">Linked Lists</option>
+          <option value="trees">Trees</option>
+          <option value="graphs">Graphs</option>
+          <option value="dynamic-programming">Dynamic Programming</option>
+          <option value="sorting">Sorting</option>
+          <option value="searching">Searching</option>
+          <option value="greedy">Greedy</option>
+          <option value="backtracking">Backtracking</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      
+      <button id="save-solution">Save to GitHub</button>
+      <div id="status-message"></div>
+    </div>
+  </div>
+  <script src="js/popup.js"></script>
+</body>
+</html>
