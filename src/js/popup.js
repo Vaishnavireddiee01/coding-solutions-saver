@@ -70,25 +70,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // GitHub OAuth flow
   githubLoginBtn.addEventListener('click', function() {
-    const clientId = 'YOUR_GITHUB_CLIENT_ID'; // Replace with your GitHub OAuth App client ID
-    const redirectUri = chrome.identity.getRedirectURL();
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo`;
+    // We'll use GitHub's Personal Access Token approach instead of full OAuth
+    // as it's simpler for a Chrome extension
+    const tokenInput = prompt("Please enter your GitHub Personal Access Token. You can create one at https://github.com/settings/tokens with 'repo' scope.");
     
-    chrome.identity.launchWebAuthFlow({
-      url: authUrl,
-      interactive: true
-    }, function(redirectUrl) {
-      if (chrome.runtime.lastError || !redirectUrl) {
-        showStatus('Authentication failed', 'error');
-        return;
+    if (!tokenInput) {
+      showStatus('Authentication cancelled', 'error');
+      return;
+    }
+    
+    // Verify the token by making a test API call
+    fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `token ${tokenInput}`,
+        'Accept': 'application/vnd.github.v3+json'
       }
-      
-      // Extract the authorization code from the redirect URL
-      const code = new URL(redirectUrl).searchParams.get('code');
-      
-      // Exchange the code for an access token using your backend service
-      // For security reasons, this should be done on a server you control
-      exchangeCodeForToken(code);
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Invalid token or API error');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Save the token and username
+      chrome.storage.local.set({
+        githubToken: tokenInput,
+        username: data.login
+      }, function() {
+        init();
+        showStatus('Successfully connected to GitHub', 'success');
+      });
+    })
+    .catch(error => {
+      console.error('GitHub authentication error:', error);
+      showStatus('GitHub authentication failed: ' + error.message, 'error');
     });
   });
 
@@ -156,6 +172,9 @@ document.addEventListener('DOMContentLoaded', function() {
       branchName: branchName
     }, function() {
       showStatus('Repository settings saved', 'success');
+      
+      // Check if we're on a coding platform page to enable the solution section
+      checkCurrentTab();
     });
   });
 
@@ -293,6 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function showStatus(message, type) {
     statusMessage.textContent = message;
     statusMessage.className = type;
+    statusMessage.style.display = 'block';
     
     // Hide the message after 3 seconds
     setTimeout(() => {
