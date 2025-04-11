@@ -219,89 +219,120 @@ document.addEventListener('DOMContentLoaded', function() {
     const sanitizedProblemName = problemName.replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `${sanitizedProblemName}.${fileExtension}`;
     
-    // Determine the path in the repository
-    const path = `${platform}/${category}/${fileName}`;
-    
-    // Create a README file with the problem statement
-    const readmePath = `${platform}/${category}/${sanitizedProblemName}_README.md`;
-    const readmeContent = `# ${problemName}\n\n## Problem Statement\n\n${problemStatement || 'No problem statement available.'}\n\n## Solution\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
-    
-    // Create commit message
-    const commitMessage = `Add solution for ${problemName} from ${platform}`;
-    
-    // GitHub API endpoint for creating or updating a file
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-    
-    // First check if the repository exists and is accessible
-    fetch(`https://api.github.com/repos/${repo}`, {
-      headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    })
-    .then(response => {
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Repository not found. Please check the repository name.');
-        } else if (response.status === 403) {
-          throw new Error('Access forbidden. Please check your token has the "repo" scope.');
-        } else {
+    // Ensure platform and category directories exist first
+    // Create directories if they don't exist
+    createDirectoryInRepo(token, repo, branch, platform)
+      .then(() => createDirectoryInRepo(token, repo, branch, `${platform}/${category}`))
+      .then(() => {
+        // Determine the path in the repository
+        const path = `${platform}/${category}/${fileName}`;
+        
+        // Create a README file with the problem statement
+        const readmePath = `${platform}/${category}/${sanitizedProblemName}_README.md`;
+        const readmeContent = `# ${problemName}\n\n## Problem Statement\n\n${problemStatement || 'No problem statement available.'}\n\n## Solution\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+        
+        // Create commit message
+        const commitMessage = `Add solution for ${problemName} from ${platform}`;
+        
+        // GitHub API endpoint for creating or updating a file
+        const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+        
+        // Save the solution file
+        return fetch(apiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify({
+            message: commitMessage,
+            content: btoa(unescape(encodeURIComponent(code))), // Base64 encode the content
+            branch: branch
+          })
+        });
+      })
+      .then(response => {
+        if (!response.ok) {
           throw new Error(`GitHub API error: ${response.status}`);
         }
-      }
-      return response.json();
-    })
-    .then(() => {
-      // Now save the solution file
-      return fetch(apiUrl, {
-        method: 'PUT',
+        return response.json();
+      })
+      .then(data => {
+        // Now save the README with problem statement
+        const readmeApiUrl = `https://api.github.com/repos/${repo}/contents/${platform}/${category}/${sanitizedProblemName}_README.md`;
+        return fetch(readmeApiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify({
+            message: `Add problem statement for ${problemName}`,
+            content: btoa(unescape(encodeURIComponent(readmeContent))), // Base64 encode the content
+            branch: branch
+          })
+        });
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        showStatus('Solution and problem statement saved to GitHub successfully!', 'success');
+      })
+      .catch(error => {
+        console.error('Error saving to GitHub:', error);
+        showStatus(`Error saving to GitHub: ${error.message}`, 'error');
+      });
+  }
+
+  // Function to create a directory in the repository
+  function createDirectoryInRepo(token, repo, branch, path) {
+    return new Promise((resolve, reject) => {
+      // Check if directory already exists
+      fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
         headers: {
           'Authorization': `token ${token}`,
-          'Content-Type': 'application/json',
           'Accept': 'application/vnd.github.v3+json'
-        },
-        body: JSON.stringify({
-          message: commitMessage,
-          content: btoa(unescape(encodeURIComponent(code))), // Base64 encode the content
-          branch: branch
-        })
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          // Directory exists, resolve
+          resolve();
+        } else if (response.status === 404) {
+          // Directory doesn't exist, create it with a .gitkeep file
+          return fetch(`https://api.github.com/repos/${repo}/contents/${path}/.gitkeep`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `token ${token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/vnd.github.v3+json'
+            },
+            body: JSON.stringify({
+              message: `Create ${path} directory`,
+              content: btoa(''), // Empty file content
+              branch: branch
+            })
+          });
+        } else {
+          reject(new Error(`GitHub API error: ${response.status}`));
+        }
+      })
+      .then(response => {
+        if (response && !response.ok) {
+          reject(new Error(`GitHub API error: ${response.status}`));
+        } else if (response) {
+          resolve();
+        }
+      })
+      .catch(error => {
+        reject(error);
       });
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      // Now save the README with problem statement
-      const readmeApiUrl = `https://api.github.com/repos/${repo}/contents/${readmePath}`;
-      return fetch(readmeApiUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github.v3+json'
-        },
-        body: JSON.stringify({
-          message: `Add problem statement for ${problemName}`,
-          content: btoa(unescape(encodeURIComponent(readmeContent))), // Base64 encode the content
-          branch: branch
-        })
-      });
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      showStatus('Solution and problem statement saved to GitHub successfully!', 'success');
-    })
-    .catch(error => {
-      console.error('Error saving to GitHub:', error);
-      showStatus(`Error saving to GitHub: ${error.message}`, 'error');
     });
   }
 
