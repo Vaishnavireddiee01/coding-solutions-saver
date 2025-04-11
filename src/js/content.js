@@ -7,6 +7,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     sendResponse(info);
   } else if (request.action === "getSolutionCode") {
     const solution = getSolutionCode();
+    // Also extract the problem statement
+    solution.problemStatement = extractProblemStatement();
     sendResponse(solution);
   }
   return true; // Keep the message channel open for async responses
@@ -229,4 +231,43 @@ function extractCodeChefSolution() {
   }
   
   return "// Could not extract code from CodeChef editor";
+}
+
+// Add new function to extract problem statements
+function extractProblemStatement() {
+  const url = window.location.href;
+  
+  // LeetCode
+  if (url.includes('leetcode.com/problems/')) {
+    const problemContent = document.querySelector('.question-content');
+    if (problemContent) {
+      return problemContent.innerText;
+    }
+  }
+  
+  // GeeksForGeeks
+  else if (url.includes('practice.geeksforgeeks.org/problems/')) {
+    const problemContent = document.querySelector('.problem-statement');
+    if (problemContent) {
+      return problemContent.innerText;
+    }
+  }
+  
+  // CodeForces
+  else if (url.includes('codeforces.com/problemset/problem/')) {
+    const problemContent = document.querySelector('.problem-statement');
+    if (problemContent) {
+      return problemContent.innerText;
+    }
+  }
+  
+  // CodeChef
+  else if (url.includes('codechef.com/problems/')) {
+    const problemContent = document.querySelector('.problem-statement');
+    if (problemContent) {
+      return problemContent.innerText;
+    }
+  }
+  
+  return "Problem statement could not be extracted.";
 }

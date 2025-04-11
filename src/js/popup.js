@@ -180,7 +180,8 @@ document.addEventListener('DOMContentLoaded', function() {
               response.problemName,
               response.language,
               categorySelect.value,
-              response.code
+              response.code,
+              response.problemStatement // Added problem statement
             );
           } else {
             showStatus('Could not retrieve solution code', 'error');
@@ -191,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Function to save solution to GitHub
-  function saveSolutionToGitHub(token, repo, branch, platform, problemName, language, category, code) {
+  function saveSolutionToGitHub(token, repo, branch, platform, problemName, language, category, code, problemStatement) {
     // Determine file extension based on language
     const fileExtension = getFileExtension(language);
     
@@ -202,13 +203,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Determine the path in the repository
     const path = `${platform}/${category}/${fileName}`;
     
+    // Create a README file with the problem statement
+    const readmePath = `${platform}/${category}/${sanitizedProblemName}_README.md`;
+    const readmeContent = `# ${problemName}\n\n## Problem Statement\n\n${problemStatement}\n\n## Solution\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+    
     // Create commit message
     const commitMessage = `Add solution for ${problemName} from ${platform}`;
     
     // GitHub API endpoint for creating or updating a file
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+    const readmeApiUrl = `https://api.github.com/repos/${repo}/contents/${readmePath}`;
     
-    // Make the API request to GitHub
+    // First save the solution file
     fetch(apiUrl, {
       method: 'PUT',
       headers: {
@@ -229,7 +235,29 @@ document.addEventListener('DOMContentLoaded', function() {
       return response.json();
     })
     .then(data => {
-      showStatus('Solution saved to GitHub successfully!', 'success');
+      // Now save the README with problem statement
+      return fetch(readmeApiUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github.v3+json'
+        },
+        body: JSON.stringify({
+          message: `Add problem statement for ${problemName}`,
+          content: btoa(unescape(encodeURIComponent(readmeContent))), // Base64 encode the content
+          branch: branch
+        })
+      });
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      showStatus('Solution and problem statement saved to GitHub successfully!', 'success');
     })
     .catch(error => {
       console.error('Error saving to GitHub:', error);
@@ -275,3 +303,54 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize the popup
   init();
 });
+
+// Add a new button to the popup.html
+// Add this after the "Save to GitHub" button in the solution-section div:
+/*
+<button id="save-local">Save Locally</button>
+*/
+
+// Add this to your popup.js initialization code:
+const saveLocalBtn = document.getElementById('save-local');
+
+// Add event listener for the new button
+saveLocalBtn.addEventListener('click', function() {
+  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: "getSolutionCode"
+    }, function(response) {
+      if (response && response.code) {
+        saveLocalSolution(
+          response.platform,
+          response.problemName,
+          response.language,
+          categorySelect.value,
+          response.code,
+          response.problemStatement
+        );
+      } else {
+        showStatus('Could not retrieve solution code', 'error');
+      }
+    });
+  });
+});
+
+// Function to save solution locally
+function saveLocalSolution(platform, problemName, language, category, code, problemStatement) {
+  // This function will communicate with the background script to save files locally
+  chrome.runtime.sendMessage({
+    action: "saveLocal",
+    platform: platform,
+    problemName: problemName,
+    language: language,
+    category: category,
+    code: code,
+    problemStatement: problemStatement
+  }, function(response) {
+    if (response && response.success) {
+      showStatus('Solution saved locally!', 'success');
+    } else {
+      showStatus('Error saving locally: ' + (response ? response.error : 'Unknown error'), 'error');
+    }
+  });
+}
