@@ -181,36 +181,41 @@ function detectProblemInfo() {
 // Extract solution code based on the platform
 // Improve the getSolutionCode function to better access editor instances
 function getSolutionCode() {
-  const url = window.location.href;
-  let platform, problemName, language, code;
-  
-  // Set platform, problem name, and language based on the URL
-  if (url.includes('leetcode.com/problems/')) {
-    platform = 'LeetCode';
-    problemName = extractLeetCodeProblemName();
-    language = detectLeetCodeLanguage();
-    code = extractLeetCodeSolution(); // Use our new extraction function
+  try {
+    const url = window.location.href;
+    let platform, problemName, language, code;
+    
+    // Set platform, problem name, and language based on the URL
+    if (url.includes('leetcode.com/problems/')) {
+      platform = 'LeetCode';
+      problemName = extractLeetCodeProblemName();
+      language = detectLeetCodeLanguage();
+      code = extractLeetCodeSolution(); // Use our new extraction function
+    }
+    else if (url.includes('practice.geeksforgeeks.org/problems/')) {
+      platform = 'GeeksForGeeks';
+      problemName = extractGFGProblemName();
+      language = detectGFGLanguage();
+      code = extractCompleteEditorCode('gfg');
+    }
+    else if (url.includes('codeforces.com/problemset/problem/')) {
+      platform = 'CodeForces';
+      problemName = extractCodeForcesProblemName();
+      language = detectCodeForcesLanguage();
+      code = extractCompleteEditorCode('codeforces');
+    }
+    else if (url.includes('codechef.com/problems/')) {
+      platform = 'CodeChef';
+      problemName = extractCodeChefProblemName();
+      language = detectCodeChefLanguage();
+      code = extractCompleteEditorCode('codechef');
+    }
+    
+    return { platform, problemName, language, code };
+  } catch (error) {
+    console.error('Error getting solution:', error);
+    return null;
   }
-  else if (url.includes('practice.geeksforgeeks.org/problems/')) {
-    platform = 'GeeksForGeeks';
-    problemName = extractGFGProblemName();
-    language = detectGFGLanguage();
-    code = extractCompleteEditorCode('gfg');
-  }
-  else if (url.includes('codeforces.com/problemset/problem/')) {
-    platform = 'CodeForces';
-    problemName = extractCodeForcesProblemName();
-    language = detectCodeForcesLanguage();
-    code = extractCompleteEditorCode('codeforces');
-  }
-  else if (url.includes('codechef.com/problems/')) {
-    platform = 'CodeChef';
-    problemName = extractCodeChefProblemName();
-    language = detectCodeChefLanguage();
-    code = extractCompleteEditorCode('codechef');
-  }
-  
-  return { platform, problemName, language, code };
 }
 
 // New function to extract complete code from various editor types
@@ -534,35 +539,41 @@ function injectScriptToGetLeetCodeEditorContent() {
 
 // Update the getSolutionCode function
 function getSolutionCode() {
-  const url = window.location.href;
-  let platform, problemName, language, code;
-  
-  if (url.includes('leetcode.com/problems/')) {
-    platform = 'LeetCode';
-    problemName = extractLeetCodeProblemName();
-    language = detectLeetCodeLanguage();
-    code = extractLeetCodeSolution(); // Use our new extraction function
+  try {
+    const url = window.location.href;
+    let platform, problemName, language, code;
+    
+    // Set platform, problem name, and language based on the URL
+    if (url.includes('leetcode.com/problems/')) {
+      platform = 'LeetCode';
+      problemName = extractLeetCodeProblemName();
+      language = detectLeetCodeLanguage();
+      code = extractLeetCodeSolution(); // Use our new extraction function
+    }
+    else if (url.includes('practice.geeksforgeeks.org/problems/')) {
+      platform = 'GeeksForGeeks';
+      problemName = extractGFGProblemName();
+      language = detectGFGLanguage();
+      code = extractCompleteEditorCode('gfg');
+    }
+    else if (url.includes('codeforces.com/problemset/problem/')) {
+      platform = 'CodeForces';
+      problemName = extractCodeForcesProblemName();
+      language = detectCodeForcesLanguage();
+      code = extractCompleteEditorCode('codeforces');
+    }
+    else if (url.includes('codechef.com/problems/')) {
+      platform = 'CodeChef';
+      problemName = extractCodeChefProblemName();
+      language = detectCodeChefLanguage();
+      code = extractCompleteEditorCode('codechef');
+    }
+    
+    return { platform, problemName, language, code };
+  } catch (error) {
+    console.error('Error getting solution:', error);
+    return null;
   }
-  else if (url.includes('practice.geeksforgeeks.org/problems/')) {
-    platform = 'GeeksForGeeks';
-    problemName = extractGFGProblemName();
-    language = detectGFGLanguage();
-    code = extractCompleteEditorCode('gfg');
-  }
-  else if (url.includes('codeforces.com/problemset/problem/')) {
-    platform = 'CodeForces';
-    problemName = extractCodeForcesProblemName();
-    language = detectCodeForcesLanguage();
-    code = extractCompleteEditorCode('codeforces');
-  }
-  else if (url.includes('codechef.com/problems/')) {
-    platform = 'CodeChef';
-    problemName = extractCodeChefProblemName();
-    language = detectCodeChefLanguage();
-    code = extractCompleteEditorCode('codechef');
-  }
-  
-  return { platform, problemName, language, code };
 }
 
 // GeeksForGeeks

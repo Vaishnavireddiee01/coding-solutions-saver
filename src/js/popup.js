@@ -222,18 +222,52 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Save solution to GitHub
+  // Add this at the top with other DOM elements
+  let isSaving = false;
+  
+  // Update the saveSolutionBtn click handler
   saveSolutionBtn.addEventListener('click', function() {
+    if (isSaving) {
+      showStatus('Already saving, please wait...', 'info');
+      return;
+    }
+    
+    isSaving = true;
+    saveSolutionBtn.disabled = true;
+    showStatus('Saving to GitHub...', 'info');
+    
     chrome.storage.local.get(['githubToken', 'repoName', 'branchName'], function(data) {
       if (!data.githubToken || !data.repoName) {
         showStatus('Please connect to GitHub and set repository settings', 'error');
+        isSaving = false;
+        saveSolutionBtn.disabled = false;
         return;
       }
       
       chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: "getSolutionCode"
-        }, function(response) {
-          if (response && response.code) {
+        const currentTab = tabs[0];
+        if (!currentTab) {
+          showStatus('No active tab found', 'error');
+          isSaving = false;
+          saveSolutionBtn.disabled = false;
+          return;
+        }
+  
+        // First ensure content script is injected
+        chrome.scripting.executeScript({
+          target: {tabId: currentTab.id},
+          files: ['js/content.js']
+        }).then(() => {
+          // Now send message to get problem info
+          chrome.tabs.sendMessage(currentTab.id, {action: "getProblemInfo"}, function(response) {
+            if (!response || !response.platform) {
+              showStatus('Failed to detect problem. Please refresh the page and try again.', 'error');
+              isSaving = false;
+              saveSolutionBtn.disabled = false;
+              return;
+            }
+  
+            // Proceed with saving
             saveSolutionToGitHub(
               data.githubToken,
               data.repoName,
@@ -243,64 +277,95 @@ document.addEventListener('DOMContentLoaded', function() {
               response.language,
               categorySelect.value,
               response.code,
-              response.problemStatement // Added problem statement
-            );
-          } else {
-            showStatus('Could not retrieve solution code', 'error');
-          }
+              response.problemStatement
+            ).finally(() => {
+              isSaving = false;
+              saveSolutionBtn.disabled = false;
+            });
+          });
+        }).catch(error => {
+          console.error('Script injection failed:', error);
+          showStatus('Failed to detect problem. Please refresh the page and try again.', 'error');
+          isSaving = false;
+          saveSolutionBtn.disabled = false;
         });
       });
     });
   });
 
-  // Function to save solution to GitHub
-  // First, add this near the top with other DOM element declarations
-  const customCategoryContainer = document.getElementById('custom-category-container');
-  const customCategoryInput = document.getElementById('custom-category');
-  
-  // Add this event listener for category selection change
-  categorySelect.addEventListener('change', function() {
-    if (this.value === 'Other') {
-      customCategoryContainer.style.display = 'block';
-    } else {
-      customCategoryContainer.style.display = 'none';
-    }
-  });
-  
-  // Update the saveSolutionToGitHub function to handle custom category
-  // Update the saveSolutionToGitHub function
+  // Update saveSolutionToGitHub to return a Promise
   function saveSolutionToGitHub(token, repo, branch, platform, problemName, language, category, code, problemStatement) {
-      // Log the parameters for debugging
-      console.log('Saving to GitHub with params:', { repo, branch, platform, category });
-      
-      // Define safeBranch with proper validation
-      const safeBranch = branch || 'main'; // Fallback to 'main' if branch is undefined
-      
-      // Determine file extension based on language
+    return new Promise((resolve, reject) => {
+      // Validate inputs
+      if (!problemName || problemName === "Unknown (refresh page)") {
+        reject(new Error('Invalid problem name'));
+        return;
+      }
+  
+      const safeBranch = branch || 'main';
       const fileExtension = getFileExtension(language);
-      
-      // Create a sanitized filename
       const sanitizedProblemName = problemName.replace(/[<>:"/\\|?*]/g, '_');
       const fileName = `${sanitizedProblemName}.${fileExtension}`;
       
-      // Handle "Other" category
+      // Handle custom category
       let folderCategory = category;
       if (category === 'Other') {
-          const customCategory = document.getElementById('custom-category').value.trim();
-          if (customCategory) {
-              folderCategory = customCategory;
-          }
+        const customCategory = document.getElementById('custom-category').value.trim();
+        if (!customCategory) {
+          reject(new Error('Please enter a custom category name'));
+          return;
+        }
+        folderCategory = customCategory;
       }
-      
-      // Rest of your function remains the same...
+  
       const folderPath = `${platform}/${folderCategory}`;
       const path = `${folderPath}/${fileName}`;
-      const commitMessage = `Add solution for ${problemName} from ${platform}`;
-      
-      // GitHub API endpoint
       const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=${safeBranch}`;
-      
-      // ... rest of your existing API call code
+  
+      // First check if file exists to get SHA if updating
+      fetch(apiUrl, {
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      })
+      .then(response => response.ok ? response.json() : {exists: false})
+      .then(fileData => {
+        const requestBody = {
+          message: `Add solution for ${problemName}`,
+          content: btoa(unescape(encodeURIComponent(code))),
+          branch: safeBranch
+        };
+  
+        if (fileData.sha) {
+          requestBody.sha = fileData.sha;
+        }
+  
+        return fetch(apiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(err => {
+            throw new Error(err.message || 'Failed to save to GitHub');
+          });
+        }
+        showStatus('Solution saved successfully!', 'success');
+        resolve();
+      })
+      .catch(error => {
+        console.error('GitHub save error:', error);
+        showStatus(`Save failed: ${error.message}`, 'error');
+        reject(error);
+      });
+    });
   }
 
   // Function to create a directory in the repository
