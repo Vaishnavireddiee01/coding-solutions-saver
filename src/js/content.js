@@ -137,43 +137,194 @@ function detectProblemInfo() {
 }
 
 // Extract solution code based on the platform
+// Improve the getSolutionCode function to better access editor instances
 function getSolutionCode() {
   const url = window.location.href;
   let platform, problemName, language, code;
   
-  // LeetCode
+  // Set platform, problem name, and language based on the URL
   if (url.includes('leetcode.com/problems/')) {
     platform = 'LeetCode';
     problemName = extractLeetCodeProblemName();
     language = detectLeetCodeLanguage();
-    code = extractLeetCodeSolution();
+    code = extractCompleteEditorCode('leetcode'); // Use specialized extraction
   }
-  
-  // GeeksForGeeks
   else if (url.includes('practice.geeksforgeeks.org/problems/')) {
     platform = 'GeeksForGeeks';
     problemName = extractGFGProblemName();
     language = detectGFGLanguage();
-    code = extractGFGSolution();
+    code = extractCompleteEditorCode('gfg');
   }
-  
-  // CodeForces
   else if (url.includes('codeforces.com/problemset/problem/')) {
     platform = 'CodeForces';
     problemName = extractCodeForcesProblemName();
     language = detectCodeForcesLanguage();
-    code = extractCodeForcesSolution();
+    code = extractCompleteEditorCode('codeforces');
   }
-  
-  // CodeChef
   else if (url.includes('codechef.com/problems/')) {
     platform = 'CodeChef';
     problemName = extractCodeChefProblemName();
     language = detectCodeChefLanguage();
-    code = extractCodeChefSolution();
+    code = extractCompleteEditorCode('codechef');
   }
   
   return { platform, problemName, language, code };
+}
+
+// New function to extract complete code from various editor types
+function extractCompleteEditorCode(platform) {
+  // Try to access editor directly through global variables first
+  try {
+    // LeetCode specific extraction
+    if (platform === 'leetcode') {
+      // Method 1: Try to access Monaco editor directly
+      if (window.monaco && window.monaco.editor) {
+        const editors = window.monaco.editor.getEditors();
+        if (editors && editors.length > 0) {
+          return editors[0].getModel().getValue();
+        }
+      }
+      
+      // Method 2: Try to access editor through React components
+      const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
+      for (const element of editorElements) {
+        // Access React instance
+        for (const key in element) {
+          if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
+            let fiber = element[key];
+            while (fiber) {
+              if (fiber.stateNode && fiber.stateNode.editor) {
+                return fiber.stateNode.editor.getValue();
+              }
+              fiber = fiber.return;
+            }
+          }
+        }
+      }
+    }
+    
+    // GeeksForGeeks specific extraction
+    if (platform === 'gfg') {
+      // Try to access Ace editor
+      if (window.ace && window.ace.edit) {
+        const aceEditors = document.querySelectorAll('.ace_editor');
+        for (const editor of aceEditors) {
+          if (editor.id) {
+            try {
+              const aceEditor = window.ace.edit(editor.id);
+              return aceEditor.getValue();
+            } catch (e) {
+              console.log("Error accessing GFG ace editor:", e);
+            }
+          }
+        }
+      }
+    }
+    
+    // CodeForces specific extraction
+    if (platform === 'codeforces') {
+      // Try to access CodeMirror editor
+      const codeMirrorElements = document.querySelectorAll('.CodeMirror');
+      for (const element of codeMirrorElements) {
+        if (element.CodeMirror) {
+          return element.CodeMirror.getValue();
+        }
+      }
+    }
+    
+    // CodeChef specific extraction
+    if (platform === 'codechef') {
+      // Try to access Monaco editor
+      if (window.monaco && window.monaco.editor) {
+        const editors = window.monaco.editor.getEditors();
+        if (editors && editors.length > 0) {
+          return editors[0].getModel().getValue();
+        }
+      }
+      
+      // Try to access Ace editor
+      if (window.ace && window.ace.edit) {
+        const aceEditors = document.querySelectorAll('.ace_editor');
+        for (const editor of aceEditors) {
+          if (editor.id) {
+            try {
+              const aceEditor = window.ace.edit(editor.id);
+              return aceEditor.getValue();
+            } catch (e) {
+              console.log("Error accessing CodeChef ace editor:", e);
+            }
+          }
+        }
+      }
+    }
+    
+    // Generic editor access methods (try all common editor types)
+    
+    // Try Monaco editor (used by LeetCode, VS Code web)
+    if (window.monaco && window.monaco.editor) {
+      const editors = window.monaco.editor.getEditors();
+      if (editors && editors.length > 0) {
+        return editors[0].getModel().getValue();
+      }
+    }
+    
+    // Try CodeMirror (used by many platforms)
+    const codeMirrorElements = document.querySelectorAll('.CodeMirror');
+    for (const element of codeMirrorElements) {
+      if (element.CodeMirror) {
+        return element.CodeMirror.getValue();
+      }
+    }
+    
+    // Try Ace Editor (used by many platforms)
+    if (window.ace && window.ace.edit) {
+      const aceEditors = document.querySelectorAll('.ace_editor');
+      for (const editor of aceEditors) {
+        if (editor.id) {
+          try {
+            const aceEditor = window.ace.edit(editor.id);
+            return aceEditor.getValue();
+          } catch (e) {
+            console.log("Error accessing ace editor:", e);
+          }
+        }
+      }
+    }
+    
+    // Try to find editor in global variables
+    if (window.editor) {
+      return window.editor.getValue();
+    }
+    
+    // Last resort: Try to extract from DOM elements
+    // This is less reliable but might work in some cases
+    const editorElements = document.querySelectorAll('.monaco-editor, .CodeMirror, .ace_editor');
+    for (const editor of editorElements) {
+      // For Monaco editor
+      const monacoLines = editor.querySelectorAll('.view-line');
+      if (monacoLines.length > 0) {
+        return Array.from(monacoLines).map(line => line.textContent).join('\n');
+      }
+      
+      // For CodeMirror
+      const cmLines = editor.querySelectorAll('.CodeMirror-line');
+      if (cmLines.length > 0) {
+        return Array.from(cmLines).map(line => line.textContent).join('\n');
+      }
+      
+      // For Ace editor
+      const aceLines = editor.querySelectorAll('.ace_line');
+      if (aceLines.length > 0) {
+        return Array.from(aceLines).map(line => line.textContent).join('\n');
+      }
+    }
+    
+  } catch (e) {
+    console.error("Error extracting code:", e);
+  }
+  
+  // If all else fails, return a message
+  return "// Could not extract complete code. Please try refreshing the page.";
 }
 
 // Platform-specific extraction functions
@@ -350,6 +501,19 @@ function extractProblemStatement() {
   return "Problem statement could not be extracted.";
 }
 
-// REMOVE the duplicate listener at the bottom of your file (lines 274-323)
-// Delete from "// When receiving a message to get the solution code" 
-// to "// Other helper functions remain the same
+// When receiving a message to get the solution code
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  if (request.action === "getSolutionCode") {
+    const solution = getSolutionCode();
+    solution.problemStatement = extractProblemStatement();
+    
+    // Log the extracted code for debugging
+    console.log("Extracted code length:", solution.code ? solution.code.length : 0);
+    
+    sendResponse(solution);
+    return true; // Keep the message channel open for async response
+  }
+  
+  // Handle other message types...
+  return true;
+});
