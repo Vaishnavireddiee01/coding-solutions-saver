@@ -180,6 +180,7 @@ function detectProblemInfo() {
 
 // Extract solution code based on the platform
 // Improve the getSolutionCode function to better access editor instances
+// Update the getSolutionCode function
 function getSolutionCode() {
   try {
     const url = window.location.href;
@@ -190,7 +191,18 @@ function getSolutionCode() {
       platform = 'LeetCode';
       problemName = extractLeetCodeProblemName();
       language = detectLeetCodeLanguage();
-      code = extractLeetCodeSolution(); // Use our new extraction function
+      code = extractLeetCodeSolution();
+      
+      // Additional validation for LeetCode
+      if (!problemName || problemName === 'Unknown Problem') {
+        // Try alternative detection methods
+        const titleElement = document.querySelector('title');
+        if (titleElement) {
+          const titleText = titleElement.textContent;
+          const match = titleText.match(/^(.*?)\s*-\s*LeetCode/);
+          if (match) problemName = match[1].trim();
+        }
+      }
     }
     else if (url.includes('practice.geeksforgeeks.org/problems/')) {
       platform = 'GeeksForGeeks';
@@ -211,10 +223,27 @@ function getSolutionCode() {
       code = extractCompleteEditorCode('codechef');
     }
     
-    return { platform, problemName, language, code };
+    // Final validation before returning
+    if (!problemName || problemName === 'Unknown Problem') {
+      throw new Error('Problem name could not be detected');
+    }
+    
+    return { 
+      platform, 
+      problemName, 
+      language, 
+      code: code || "// No code detected",
+      problemStatement: extractProblemStatement() 
+    };
   } catch (error) {
     console.error('Error getting solution:', error);
-    return null;
+    return {
+      platform: 'Unknown',
+      problemName: 'Unknown Problem',
+      language: 'Unknown',
+      code: "// Error detecting problem: " + error.message,
+      problemStatement: "Problem detection failed"
+    };
   }
 }
 
@@ -548,7 +577,18 @@ function getSolutionCode() {
       platform = 'LeetCode';
       problemName = extractLeetCodeProblemName();
       language = detectLeetCodeLanguage();
-      code = extractLeetCodeSolution(); // Use our new extraction function
+      code = extractLeetCodeSolution();
+      
+      // Additional validation for LeetCode
+      if (!problemName || problemName === 'Unknown Problem') {
+        // Try alternative detection methods
+        const titleElement = document.querySelector('title');
+        if (titleElement) {
+          const titleText = titleElement.textContent;
+          const match = titleText.match(/^(.*?)\s*-\s*LeetCode/);
+          if (match) problemName = match[1].trim();
+        }
+      }
     }
     else if (url.includes('practice.geeksforgeeks.org/problems/')) {
       platform = 'GeeksForGeeks';
@@ -569,10 +609,27 @@ function getSolutionCode() {
       code = extractCompleteEditorCode('codechef');
     }
     
-    return { platform, problemName, language, code };
+    // Final validation before returning
+    if (!problemName || problemName === 'Unknown Problem') {
+      throw new Error('Problem name could not be detected');
+    }
+    
+    return { 
+      platform, 
+      problemName, 
+      language, 
+      code: code || "// No code detected",
+      problemStatement: extractProblemStatement() 
+    };
   } catch (error) {
     console.error('Error getting solution:', error);
-    return null;
+    return {
+      platform: 'Unknown',
+      problemName: 'Unknown Problem',
+      language: 'Unknown',
+      code: "// Error detecting problem: " + error.message,
+      problemStatement: "Problem detection failed"
+    };
   }
 }
 
@@ -715,14 +772,21 @@ function extractProblemStatement() {
 // When receiving a message to get the solution code
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getSolutionCode") {
-    const solution = getSolutionCode();
-    solution.problemStatement = extractProblemStatement();
-    
-    // Log the extracted code for debugging
-    console.log("Extracted code:", solution.code);
-    console.log("Extracted problem statement:", solution.problemStatement);
-    
-    sendResponse(solution);
+    try {
+      const solution = getSolutionCode();
+      if (!solution || !solution.platform) {
+        throw new Error('Failed to detect platform');
+      }
+      sendResponse(solution);
+    } catch (error) {
+      sendResponse({
+        platform: 'Unknown',
+        problemName: 'Unknown Problem',
+        language: 'Unknown',
+        code: "// Error: " + error.message,
+        problemStatement: "Detection failed"
+      });
+    }
+    return true;
   }
-  return true; // Keep the message channel open for async response
 });

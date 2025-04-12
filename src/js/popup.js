@@ -294,7 +294,31 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Update saveSolutionToGitHub to return a Promise
+  // Add this near the top with other DOM element declarations
+  const customCategoryContainer = document.getElementById('custom-category-container');
+  const customCategoryInput = document.getElementById('custom-category');
+  
+  // Add this event listener for category selection change
+  categorySelect.addEventListener('change', function() {
+    if (this.value === 'Other') {
+      customCategoryContainer.style.display = 'block';
+      customCategoryInput.value = ''; // Clear previous input
+    } else {
+      customCategoryContainer.style.display = 'none';
+    }
+  });
+  
+  // Update the saveSolutionToGitHub function to handle custom category
   function saveSolutionToGitHub(token, repo, branch, platform, problemName, language, category, code, problemStatement) {
+    // Get the final category name
+    let finalCategory = category;
+    if (category === 'Other') {
+      finalCategory = customCategoryInput.value.trim();
+      if (!finalCategory) {
+        showStatus('Please enter a custom category name', 'error');
+        return Promise.reject('No custom category name provided');
+      }
+    }
     return new Promise((resolve, reject) => {
       // Validate inputs
       if (!problemName || problemName === "Unknown (refresh page)") {
