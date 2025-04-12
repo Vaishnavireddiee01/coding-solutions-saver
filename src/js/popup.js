@@ -227,46 +227,44 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Update the saveSolutionBtn click handler
   saveSolutionBtn.addEventListener('click', function() {
-    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-      const currentTab = tabs[0];
+    chrome.storage.local.get(['githubToken', 'repoName', 'branchName'], function(storageData) {
+      if (!storageData.githubToken || !storageData.repoName) {
+        showStatus('Please connect to GitHub and set repository settings', 'error');
+        return;
+      }
       
-      // First inject content script
-      chrome.scripting.executeScript({
-        target: {tabId: currentTab.id},
-        files: ['js/content.js']
-      }).then(() => {
-        // Now send message with timeout
-        const messageTimeout = setTimeout(() => {
-          showStatus('Timeout: Could not get solution from page', 'error');
-        }, 5000); // 5 second timeout
-  
-        chrome.tabs.sendMessage(currentTab.id, {action: "getSolutionCode"}, function(response) {
-          clearTimeout(messageTimeout);
-          
-          if (!response) {
-            showStatus('Failed to get solution from page', 'error');
-            return;
-          }
-          
-          // Proceed with saving
-          saveSolutionToGitHub(
-            data.githubToken,
-            data.repoName,
-            data.branchName || 'main',
-            response.platform,
-            response.problemName,
-            response.language,
-            categorySelect.value,
-            response.code,
-            response.problemStatement
-          ).finally(() => {
-            isSaving = false;
-            saveSolutionBtn.disabled = false;
+      chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        const currentTab = tabs[0];
+        
+        // First inject content script
+        chrome.scripting.executeScript({
+          target: {tabId: currentTab.id},
+          files: ['js/content.js']
+        }).then(() => {
+          // Now send message to get solution code
+          chrome.tabs.sendMessage(currentTab.id, {
+            action: "getSolutionCode"
+          }, function(response) {
+            if (response && response.code) {
+              saveSolutionToGitHub(
+                storageData.githubToken,
+                storageData.repoName,
+                storageData.branchName || 'main',
+                response.platform,
+                response.problemName,
+                response.language,
+                categorySelect.value,
+                response.code,
+                response.problemStatement
+              );
+            } else {
+              showStatus('Could not retrieve solution code', 'error');
+            }
           });
+        }).catch(error => {
+          console.error('Script injection failed:', error);
+          showStatus('Failed to access page content', 'error');
         });
-      }).catch(error => {
-        console.error('Script injection failed:', error);
-        showStatus('Failed to access page content', 'error');
       });
     });
   });
