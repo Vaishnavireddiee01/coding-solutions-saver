@@ -48,57 +48,58 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Check if current tab is a coding platform
+  // Update the checkCurrentTab function
   function checkCurrentTab() {
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
       const currentTab = tabs[0];
-      
-      // First check if we're on a supported coding platform by examining the URL
       const url = currentTab.url || '';
+      
+      // First check URL patterns
       const isCodingPlatform = url.includes('leetcode.com/problems/') || 
-                              url.includes('practice.geeksforgeeks.org/problems/') ||
-                              url.includes('codeforces.com/problemset/problem/') ||
-                              url.includes('codechef.com/problems/');
+                            url.includes('practice.geeksforgeeks.org/problems/') ||
+                            url.includes('codeforces.com/problemset/problem/') ||
+                            url.includes('codechef.com/problems/');
       
       if (!isCodingPlatform) {
-        // Not on a coding platform, hide the solution section
         solutionSection.style.display = 'none';
         return;
       }
-      
-      // Try to send message to content script with error handling
-      try {
+  
+      // Try to inject content script if not already loaded
+      chrome.scripting.executeScript({
+        target: {tabId: currentTab.id},
+        files: ['js/content.js']
+      }).then(() => {
+        // Content script injected successfully, now send message
         chrome.tabs.sendMessage(currentTab.id, {action: "getProblemInfo"}, function(response) {
-          // Check for runtime.lastError to prevent unchecked error
           if (chrome.runtime.lastError) {
-            console.log("Content script not available:", chrome.runtime.lastError.message);
-            // Still show solution section if we're on a coding platform URL
-            solutionSection.style.display = 'block';
-            platformSpan.textContent = getPlatformFromUrl(url);
-            problemNameSpan.textContent = "Unknown (refresh page)";
-            languageSpan.textContent = "Unknown";
+            console.log("Content script error:", chrome.runtime.lastError.message);
+            showFallbackInfo(url);
             return;
           }
           
           if (response && response.platform) {
-            // We're on a coding platform
             solutionSection.style.display = 'block';
             platformSpan.textContent = response.platform;
             problemNameSpan.textContent = response.problemName;
             languageSpan.textContent = response.language;
           } else {
-            // Not on a coding platform
             solutionSection.style.display = 'none';
           }
         });
-      } catch (error) {
-        console.error("Error checking current tab:", error);
-        // Still show solution section if we're on a coding platform URL
-        solutionSection.style.display = 'block';
-        platformSpan.textContent = getPlatformFromUrl(url);
-        problemNameSpan.textContent = "Unknown (refresh page)";
-        languageSpan.textContent = "Unknown";
-      }
+      }).catch(error => {
+        console.error("Script injection failed:", error);
+        showFallbackInfo(url);
+      });
     });
+  }
+
+  // Add this helper function
+  function showFallbackInfo(url) {
+    solutionSection.style.display = 'block';
+    platformSpan.textContent = getPlatformFromUrl(url);
+    problemNameSpan.textContent = "Unknown (refresh page)";
+    languageSpan.textContent = "Unknown";
   }
 
   // Helper function to determine platform from URL

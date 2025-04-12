@@ -5,11 +5,8 @@
   "description": "Save your accepted coding solutions from LeetCode, GFG, CodeForces, and CodeChef directly to your GitHub repository",
   "permissions": [
     "activeTab",
-    "storage",
     "scripting",
-    "tabs",
-    "downloads",
-    "contextMenus"
+    "storage"
   ],
   "host_permissions": [
     "https://leetcode.com/*",
