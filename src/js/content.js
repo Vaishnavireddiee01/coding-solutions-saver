@@ -394,6 +394,7 @@ function detectLeetCodeLanguage() {
 
 // LeetCode specific extraction
 // Update the extractLeetCodeSolution function to better handle line extraction
+// Remove the duplicate Method 4 from extractLeetCodeSolution()
 function extractLeetCodeSolution() {
   try {
     // Method 1: Access Monaco editor directly
@@ -436,17 +437,42 @@ function extractLeetCodeSolution() {
       }
     }
 
-    // Method 4: Fallback to DOM scraping
-    const editorElement = document.querySelector('.monaco-editor');
-    if (editorElement) {
-      const codeLines = Array.from(editorElement.querySelectorAll('.view-line'));
-      return codeLines.map(line => line.textContent).join('\n');
-    }
   } catch (e) {
     console.error("Error extracting LeetCode solution:", e);
   }
   
   return "// Could not extract code from LeetCode editor";
+}
+
+// Add the missing function
+function injectScriptToGetLeetCodeEditorContent() {
+  return new Promise((resolve) => {
+    try {
+      // Try to access editor through direct JavaScript injection
+      const script = document.createElement('script');
+      script.text = `
+        (function() {
+          try {
+            if (window.monaco && window.monaco.editor) {
+              const editors = window.monaco.editor.getEditors();
+              if (editors && editors.length > 0) {
+                return editors[0].getModel().getValue();
+              }
+            }
+            return null;
+          } catch(e) {
+            return null;
+          }
+        })();
+      `;
+      document.documentElement.appendChild(script);
+      const result = script.textContent;
+      document.documentElement.removeChild(script);
+      resolve(result);
+    } catch (e) {
+      resolve(null);
+    }
+  });
 }
 
 // Update the getSolutionCode function
