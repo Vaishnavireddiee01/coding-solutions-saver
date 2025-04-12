@@ -367,37 +367,66 @@ function extractCompleteEditorCode(platform) {
 // Platform-specific extraction functions
 // LeetCode
 function extractLeetCodeProblemName() {
-  // Extract from title or URL
-  const titleElement = document.querySelector('title');
-  if (titleElement) {
-    const titleText = titleElement.textContent;
-    const match = titleText.match(/^(.*?)\s*-\s*LeetCode/);
-    if (match) return match[1].trim();
+  try {
+    // Try to get from title element
+    const titleElement = document.querySelector('[data-cy="question-title"]');
+    if (titleElement) {
+      return titleElement.textContent.trim();
+    }
+    
+    // Fallback to URL extraction
+    const pathParts = window.location.pathname.split('/');
+    const problemSlug = pathParts[pathParts.indexOf('problems') + 1];
+    if (problemSlug) {
+      return problemSlug.split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+  } catch (e) {
+    console.error("Error extracting problem name:", e);
   }
   
-  // Fallback to URL extraction
-  const pathParts = window.location.pathname.split('/');
-  const problemSlug = pathParts[pathParts.indexOf('problems') + 1];
-  return problemSlug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  return 'Unknown Problem';
 }
 
 function detectLeetCodeLanguage() {
-  // Try to find the language selector
-  const languageButton = document.querySelector('[data-cy="lang-select"]');
-  if (languageButton) {
-    return languageButton.textContent.trim();
+  try {
+    // Try to find the language selector button
+    const languageButton = document.querySelector('[data-cy="lang-select"]');
+    if (languageButton) {
+      return languageButton.textContent.trim();
+    }
+    
+    // Try to find language in editor settings
+    const editorSettings = document.querySelector('.monaco-editor');
+    if (editorSettings) {
+      const languageMatch = editorSettings.className.match(/language-(\w+)/);
+      if (languageMatch) {
+        return languageMatch[1];
+      }
+    }
+    
+    // Try to detect from code content
+    const code = extractLeetCodeSolution();
+    if (code.includes('class ') && code.includes('{') && code.includes('}')) {
+      return 'Java';
+    } else if (code.includes('def ')) {
+      return 'Python';
+    } else if (code.includes('function ') || code.includes('=>')) {
+      return 'JavaScript';
+    }
+  } catch (e) {
+    console.error("Error detecting language:", e);
   }
   
-  // Fallback
   return 'Unknown';
 }
 
 // LeetCode specific extraction
-// Update the extractLeetCodeSolution function to better handle line extraction
-// Remove the duplicate Method 4 from extractLeetCodeSolution()
+// Improved LeetCode solution extraction
 function extractLeetCodeSolution() {
   try {
-    // Method 1: Access Monaco editor directly
+    // Method 1: Access Monaco editor model directly
     if (window.monaco && window.monaco.editor) {
       const editors = window.monaco.editor.getEditors();
       if (editors && editors.length > 0) {
@@ -405,31 +434,39 @@ function extractLeetCodeSolution() {
         const lineCount = model.getLineCount();
         let fullCode = '';
         
-        // Get all lines including the last one
+        // Get all lines with proper indentation
         for (let i = 1; i <= lineCount; i++) {
-          fullCode += model.getLineContent(i) + '\n';
+          const lineContent = model.getLineContent(i);
+          fullCode += lineContent + '\n';
         }
-        return fullCode.trim(); // Remove trailing newline
+        return fullCode.trim();
       }
     }
 
-    // Method 2: Fallback to DOM scraping with improved line handling
-    const editorElement = document.querySelector('.monaco-editor');
-    if (editorElement) {
-      const codeLines = Array.from(editorElement.querySelectorAll('.view-line'));
-      return codeLines.map(line => {
-        // Get all text nodes including the last one
-        const textNodes = [];
-        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while (node = walker.nextNode()) {
-          textNodes.push(node.nodeValue);
+    // Method 2: Access through React component state
+    const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
+    for (const element of editorElements) {
+      for (const key in element) {
+        if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
+          let fiber = element[key];
+          while (fiber) {
+            if (fiber.stateNode && fiber.stateNode.editor) {
+              const model = fiber.stateNode.editor.getModel();
+              const lineCount = model.getLineCount();
+              let fullCode = '';
+              
+              for (let i = 1; i <= lineCount; i++) {
+                fullCode += model.getLineContent(i) + '\n';
+              }
+              return fullCode.trim();
+            }
+            fiber = fiber.return;
+          }
         }
-        return textNodes.join('').trim();
-      }).join('\n');
+      }
     }
 
-    // Method 3: Try to find the hidden textarea
+    // Method 3: Try to get from hidden textarea (includes all code)
     const textareas = document.querySelectorAll('textarea');
     for (const textarea of textareas) {
       if (textarea.value && (textarea.value.includes('function') || textarea.value.includes('class'))) {
