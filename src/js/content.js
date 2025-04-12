@@ -177,28 +177,88 @@ function extractCompleteEditorCode(platform) {
   try {
     // LeetCode specific extraction
     if (platform === 'leetcode') {
-      // Method 1: Try to access Monaco editor directly
-      if (window.monaco && window.monaco.editor) {
-        const editors = window.monaco.editor.getEditors();
-        if (editors && editors.length > 0) {
-          return editors[0].getModel().getValue();
+      // First try to inject a script to get the editor content directly
+      return new Promise(async (resolve) => {
+        const injectedContent = await injectScriptToGetLeetCodeEditorContent();
+        if (injectedContent) {
+          resolve(injectedContent);
+          return;
+        }
+        
+        // If injection failed, try the other methods
+        // Method 1: Try to access Monaco editor directly
+        if (window.monaco && window.monaco.editor) {
+          const editors = window.monaco.editor.getEditors();
+          if (editors && editors.length > 0) {
+            resolve(editors[0].getModel().getValue());
+            return;
+          }
+        }
+        
+        // Method 2: Try to access editor through React components
+        const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
+        for (const element of editorElements) {
+          // Access React instance
+          for (const key in element) {
+            if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
+              let fiber = element[key];
+              while (fiber) {
+                if (fiber.stateNode && fiber.stateNode.editor) {
+                  return fiber.stateNode.editor.getValue();
+                }
+                fiber = fiber.return;
+              }
+            }
+          }
         }
       }
       
-      // Method 2: Try to access editor through React components
-      const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
-      for (const element of editorElements) {
-        // Access React instance
-        for (const key in element) {
-          if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
-            let fiber = element[key];
-            while (fiber) {
-              if (fiber.stateNode && fiber.stateNode.editor) {
-                return fiber.stateNode.editor.getValue();
-              }
-              fiber = fiber.return;
+      // Method 3: Try to access the editor through the global ace object
+      if (window.ace) {
+        try {
+          // Find the editor container
+          const editorContainer = document.querySelector('.monaco-editor, .ace_editor');
+          if (editorContainer && editorContainer.id) {
+            const aceEditor = window.ace.edit(editorContainer.id);
+            return aceEditor.getValue();
+          }
+          
+          // Try to find any ace editor instance
+          const aceEditors = document.querySelectorAll('.ace_editor');
+          for (const editor of aceEditors) {
+            if (editor.id) {
+              const aceEditor = window.ace.edit(editor.id);
+              return aceEditor.getValue();
             }
           }
+        } catch (e) {
+          console.log("Error accessing ace editor:", e);
+        }
+      }
+      
+      // Method 4: Try to access the editor through the global CodeMirror object
+      const codeMirrorElements = document.querySelectorAll('.CodeMirror');
+      for (const element of codeMirrorElements) {
+        if (element.CodeMirror) {
+          return element.CodeMirror.getValue();
+        }
+      }
+      
+      // Method 5: Try to access the editor through the global editor variable
+      if (window.editor) {
+        return window.editor.getValue();
+      }
+      
+      // Method 6: Try to access the editor through the leetcode object
+      if (window.leetcode && window.leetcode.editor) {
+        return window.leetcode.editor.getValue();
+      }
+      
+      // Method 7: Try to find the textarea that might contain the code
+      const textareas = document.querySelectorAll('textarea');
+      for (const textarea of textareas) {
+        if (textarea.value && textarea.value.includes('function') || textarea.value.includes('class')) {
+          return textarea.value;
         }
       }
     }
@@ -505,6 +565,31 @@ function extractProblemStatement() {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getSolutionCode") {
     const solution = getSolutionCode();
+    
+    // For LeetCode, we need to handle the Promise
+    if (window.location.href.includes('leetcode.com')) {
+      // This is a Promise
+      solution.code.then(code => {
+        if (code) {
+          solution.code = code;
+        }
+        solution.problemStatement = extractProblemStatement();
+        
+        // Log the extracted code for debugging
+        console.log("Extracted code length:", solution.code ? solution.code.length : 0);
+        
+        sendResponse(solution);
+      }).catch(error => {
+        console.error("Error getting LeetCode code:", error);
+        solution.code = "// Error extracting code: " + error.message;
+        solution.problemStatement = extractProblemStatement();
+        sendResponse(solution);
+      });
+      
+      return true; // Keep the message channel open for async response
+    }
+    
+    // For other platforms, continue with synchronous response
     solution.problemStatement = extractProblemStatement();
     
     // Log the extracted code for debugging
@@ -517,3 +602,135 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   // Handle other message types...
   return true;
 });
+
+// Add this function to your content.js file
+function injectScriptToGetLeetCodeEditorContent() {
+  return new Promise((resolve) => {
+    // Create a script element to access the page's JavaScript context
+    const script = document.createElement('script');
+    
+    // Generate a unique ID for this extraction
+    const callbackId = 'leetcode_editor_content_' + Date.now();
+    
+    // The script to execute in the page context
+    script.textContent = `
+      (function() {
+        try {
+          // Try multiple methods to get the editor content
+          let editorContent = '';
+          
+          // Method 1: Try to get from Monaco editor
+          if (window.monaco && window.monaco.editor) {
+            const editors = window.monaco.editor.getEditors();
+            if (editors && editors.length > 0) {
+              editorContent = editors[0].getModel().getValue();
+            }
+          }
+          
+          // Method 2: Try to get from ace editor
+          if (!editorContent && window.ace) {
+            const aceEditors = document.querySelectorAll('.ace_editor');
+            for (const editor of aceEditors) {
+              if (editor.id) {
+                try {
+                  const aceEditor = window.ace.edit(editor.id);
+                  editorContent = aceEditor.getValue();
+                  break;
+                } catch (e) {}
+              }
+            }
+          }
+          
+          // Method 3: Try to get from CodeMirror
+          if (!editorContent) {
+            const codeMirrorElements = document.querySelectorAll('.CodeMirror');
+            for (const element of codeMirrorElements) {
+              if (element.CodeMirror) {
+                editorContent = element.CodeMirror.getValue();
+                break;
+              }
+            }
+          }
+          
+          // Method 4: Try to get from React component state
+          if (!editorContent) {
+            // Find React root
+            let foundReactRoot = false;
+            for (const key in window) {
+              if (key.startsWith('__LEETCODE__')) {
+                const leetcodeObj = window[key];
+                if (leetcodeObj && leetcodeObj.state && leetcodeObj.state.editor) {
+                  editorContent = leetcodeObj.state.editor.getValue();
+                  foundReactRoot = true;
+                  break;
+                }
+              }
+            }
+            
+            // If we didn't find it in the global object, try to find it in React fiber
+            if (!foundReactRoot) {
+              const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
+              for (const element of editorElements) {
+                for (const key in element) {
+                  if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
+                    let fiber = element[key];
+                    while (fiber) {
+                      if (fiber.stateNode && fiber.stateNode.editor) {
+                        editorContent = fiber.stateNode.editor.getValue();
+                        break;
+                      }
+                      fiber = fiber.return;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Send the content back to the content script
+          window.postMessage({
+            type: '${callbackId}',
+            content: editorContent
+          }, '*');
+        } catch (e) {
+          // Send error back to content script
+          window.postMessage({
+            type: '${callbackId}',
+            error: e.toString()
+          }, '*');
+        }
+      })();
+    `;
+    
+    // Add event listener to receive the message
+    const messageListener = function(event) {
+      if (event.data && event.data.type === callbackId) {
+        window.removeEventListener('message', messageListener);
+        if (event.data.error) {
+          console.error('Error getting LeetCode editor content:', event.data.error);
+          resolve(null);
+        } else {
+          resolve(event.data.content);
+        }
+      }
+    };
+    
+    window.addEventListener('message', messageListener);
+    
+    // Inject the script
+    document.head.appendChild(script);
+    
+    // Remove the script after execution
+    setTimeout(() => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }, 100);
+    
+    // Set a timeout to resolve with null if we don't get a response
+    setTimeout(() => {
+      window.removeEventListener('message', messageListener);
+      resolve(null);
+    }, 2000);
+  });
+}
