@@ -216,7 +216,10 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Saving to GitHub with params:', { repo, branch, platform, category });
     
     // Make sure we're using a valid branch name (default to 'main' if there's an issue)
-    const safeBranch = branch === 'array' ? 'main' : branch;
+    // Add 'tree' to the list of branch names to replace with 'main'
+    const safeBranch = (branch === 'array' || branch === 'tree' || category.toLowerCase() === branch.toLowerCase()) 
+      ? 'main' 
+      : branch;
     
     // Determine file extension based on language
     const fileExtension = getFileExtension(language);
