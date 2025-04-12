@@ -52,20 +52,62 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
       const currentTab = tabs[0];
       
-      // Send message to content script to check if we're on a coding platform
-      chrome.tabs.sendMessage(currentTab.id, {action: "getProblemInfo"}, function(response) {
-        if (response && response.platform) {
-          // We're on a coding platform
-          solutionSection.style.display = 'block';
-          platformSpan.textContent = response.platform;
-          problemNameSpan.textContent = response.problemName;
-          languageSpan.textContent = response.language;
-        } else {
-          // Not on a coding platform
-          solutionSection.style.display = 'none';
-        }
-      });
+      // First check if we're on a supported coding platform by examining the URL
+      const url = currentTab.url || '';
+      const isCodingPlatform = url.includes('leetcode.com/problems/') || 
+                              url.includes('practice.geeksforgeeks.org/problems/') ||
+                              url.includes('codeforces.com/problemset/problem/') ||
+                              url.includes('codechef.com/problems/');
+      
+      if (!isCodingPlatform) {
+        // Not on a coding platform, hide the solution section
+        solutionSection.style.display = 'none';
+        return;
+      }
+      
+      // Try to send message to content script with error handling
+      try {
+        chrome.tabs.sendMessage(currentTab.id, {action: "getProblemInfo"}, function(response) {
+          // Check for runtime.lastError to prevent unchecked error
+          if (chrome.runtime.lastError) {
+            console.log("Content script not available:", chrome.runtime.lastError.message);
+            // Still show solution section if we're on a coding platform URL
+            solutionSection.style.display = 'block';
+            platformSpan.textContent = getPlatformFromUrl(url);
+            problemNameSpan.textContent = "Unknown (refresh page)";
+            languageSpan.textContent = "Unknown";
+            return;
+          }
+          
+          if (response && response.platform) {
+            // We're on a coding platform
+            solutionSection.style.display = 'block';
+            platformSpan.textContent = response.platform;
+            problemNameSpan.textContent = response.problemName;
+            languageSpan.textContent = response.language;
+          } else {
+            // Not on a coding platform
+            solutionSection.style.display = 'none';
+          }
+        });
+      } catch (error) {
+        console.error("Error checking current tab:", error);
+        // Still show solution section if we're on a coding platform URL
+        solutionSection.style.display = 'block';
+        platformSpan.textContent = getPlatformFromUrl(url);
+        problemNameSpan.textContent = "Unknown (refresh page)";
+        languageSpan.textContent = "Unknown";
+      }
     });
+  }
+
+  // Helper function to determine platform from URL
+  function getPlatformFromUrl(url) {
+    if (url.includes('leetcode.com')) return 'LeetCode';
+    if (url.includes('practice.geeksforgeeks.org')) return 'GeeksForGeeks';
+    if (url.includes('codeforces.com')) return 'CodeForces';
+    if (url.includes('codechef.com')) return 'CodeChef';
+    return 'Unknown';
   }
 
   // GitHub OAuth flow
