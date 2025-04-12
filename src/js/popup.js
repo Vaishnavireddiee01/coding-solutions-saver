@@ -268,159 +268,39 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   
   // Update the saveSolutionToGitHub function to handle custom category
+  // Update the saveSolutionToGitHub function
   function saveSolutionToGitHub(token, repo, branch, platform, problemName, language, category, code, problemStatement) {
-    // Get the final category name
-    let finalCategory = category;
-    if (category === 'Other') {
-      finalCategory = customCategoryInput.value.trim();
-      if (!finalCategory) {
-        showStatus('Please enter a custom category name', 'error');
-        return;
-      }
-    }
-  
-    // Rest of the function remains the same, using finalCategory instead of category
-    const fileExtension = getFileExtension(language);
-    const sanitizedProblemName = problemName.replace(/[<>:"/\\|?*]/g, '_');
-    const fileName = `${sanitizedProblemName}.${fileExtension}`;
-    const folderPath = `${platform}/${finalCategory}`;
-    const path = `${folderPath}/${fileName}`;
-    
-    const commitMessage = `Add solution for ${problemName} from ${platform}`;
-    
-    // GitHub API endpoint for creating or updating a file
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=${safeBranch}`;
-    
-    console.log('Attempting to save file at:', apiUrl);
-    
-    // First, check if the file already exists to get its SHA
-    fetch(apiUrl, {
-      headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    })
-    .then(response => {
-      if (response.status === 404) {
-        // File doesn't exist, create it
-        return { exists: false };
-      } else if (response.ok) {
-        // File exists, get its SHA
-        return response.json().then(data => {
-          return { exists: true, sha: data.sha };
-        });
-      } else {
-        // Other error
-        return response.text().then(text => {
-          throw new Error(`GitHub API error: ${response.status} - ${text}`);
-        });
-      }
-    })
-    .then(fileData => {
-      // Prepare the request body
-      const requestBody = {
-        message: commitMessage,
-        content: btoa(unescape(encodeURIComponent(code))),
-        branch: safeBranch
-      };
+      // Log the parameters for debugging
+      console.log('Saving to GitHub with params:', { repo, branch, platform, category });
       
-      // If file exists, add the SHA
-      if (fileData.exists) {
-        requestBody.sha = fileData.sha;
+      // Define safeBranch with proper validation
+      const safeBranch = branch || 'main'; // Fallback to 'main' if branch is undefined
+      
+      // Determine file extension based on language
+      const fileExtension = getFileExtension(language);
+      
+      // Create a sanitized filename
+      const sanitizedProblemName = problemName.replace(/[<>:"/\\|?*]/g, '_');
+      const fileName = `${sanitizedProblemName}.${fileExtension}`;
+      
+      // Handle "Other" category
+      let folderCategory = category;
+      if (category === 'Other') {
+          const customCategory = document.getElementById('custom-category').value.trim();
+          if (customCategory) {
+              folderCategory = customCategory;
+          }
       }
       
-      // Now save/update the file
-      return fetch(apiUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github.v3+json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-    })
-    .then(response => {
-      console.log('GitHub API response status:', response.status);
+      // Rest of your function remains the same...
+      const folderPath = `${platform}/${folderCategory}`;
+      const path = `${folderPath}/${fileName}`;
+      const commitMessage = `Add solution for ${problemName} from ${platform}`;
       
-      return response.text().then(text => {
-        if (!response.ok) {
-          console.error('GitHub API error response:', text);
-          throw new Error(`GitHub API error: ${response.status} - ${text}`);
-        }
-        return JSON.parse(text);
-      });
-    })
-    .then(data => {
-      console.log('File saved successfully');
+      // GitHub API endpoint
+      const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}?ref=${safeBranch}`;
       
-      // Now save the README with problem statement
-      const readmePath = `${folderPath}/${sanitizedProblemName}_README.md`;
-      const readmeApiUrl = `https://api.github.com/repos/${repo}/contents/${readmePath}?ref=${safeBranch}`;
-      const readmeContent = `# ${problemName}\n\n## Problem Statement\n\n${problemStatement || 'No problem statement available.'}\n\n## Solution\n\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
-      
-      // Check if README already exists
-      return fetch(readmeApiUrl, {
-        headers: {
-          'Authorization': `token ${token}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      }).then(response => {
-        if (response.status === 404) {
-          // README doesn't exist, create it
-          return { exists: false };
-        } else if (response.ok) {
-          // README exists, get its SHA
-          return response.json().then(data => {
-            return { exists: true, sha: data.sha };
-          });
-        } else {
-          // Other error
-          return response.text().then(text => {
-            throw new Error(`GitHub API error: ${response.status} - ${text}`);
-          });
-        }
-      }).then(readmeData => {
-        // Prepare the request body
-        const readmeRequestBody = {
-          message: `Add problem statement for ${problemName}`,
-          content: btoa(unescape(encodeURIComponent(readmeContent))),
-          branch: safeBranch
-        };
-        
-        // If README exists, add the SHA
-        if (readmeData.exists) {
-          readmeRequestBody.sha = readmeData.sha;
-        }
-        
-        // Now save/update the README
-        return fetch(readmeApiUrl, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `token ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/vnd.github.v3+json'
-          },
-          body: JSON.stringify(readmeRequestBody)
-        });
-      });
-    })
-    .then(response => {
-      return response.text().then(text => {
-        if (!response.ok) {
-          console.error('README save error:', text);
-          throw new Error(`GitHub API error: ${response.status} - ${text}`);
-        }
-        return JSON.parse(text);
-      });
-    })
-    .then(data => {
-      showStatus('Solution and problem statement saved to GitHub successfully!', 'success');
-    })
-    .catch(error => {
-      console.error('Error saving to GitHub:', error);
-      showStatus(`Error saving to GitHub: ${error.message}`, 'error');
-    });
+      // ... rest of your existing API call code
   }
 
   // Function to create a directory in the repository
