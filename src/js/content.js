@@ -169,7 +169,7 @@ function getSolutionCode() {
     platform = 'LeetCode';
     problemName = extractLeetCodeProblemName();
     language = detectLeetCodeLanguage();
-    code = extractCompleteEditorCode('leetcode'); // Use specialized extraction
+    code = extractLeetCodeSolution(); // Use our new extraction function
   }
   else if (url.includes('practice.geeksforgeeks.org/problems/')) {
     platform = 'GeeksForGeeks';
@@ -392,18 +392,86 @@ function detectLeetCodeLanguage() {
   return 'Unknown';
 }
 
+// LeetCode specific extraction
 function extractLeetCodeSolution() {
-  // Try to get the code from the editor
-  const editorElement = document.querySelector('.monaco-editor');
-  if (editorElement) {
-    // This is a simplified approach - in a real extension, you'd need to use
-    // more robust methods to extract code from Monaco editor
-    const codeLines = Array.from(editorElement.querySelectorAll('.view-line'));
-    return codeLines.map(line => line.textContent).join('\n');
+  // Try multiple methods to get the editor content
+  try {
+    // Method 1: Access Monaco editor directly
+    if (window.monaco && window.monaco.editor) {
+      const editors = window.monaco.editor.getEditors();
+      if (editors && editors.length > 0) {
+        return editors[0].getModel().getValue();
+      }
+    }
+
+    // Method 2: Access through React components
+    const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
+    for (const element of editorElements) {
+      for (const key in element) {
+        if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
+          let fiber = element[key];
+          while (fiber) {
+            if (fiber.stateNode && fiber.stateNode.editor) {
+              return fiber.stateNode.editor.getValue();
+            }
+            fiber = fiber.return;
+          }
+        }
+      }
+    }
+
+    // Method 3: Try to find the hidden textarea
+    const textareas = document.querySelectorAll('textarea');
+    for (const textarea of textareas) {
+      if (textarea.value && (textarea.value.includes('function') || textarea.value.includes('class'))) {
+        return textarea.value;
+      }
+    }
+
+    // Method 4: Fallback to DOM scraping
+    const editorElement = document.querySelector('.monaco-editor');
+    if (editorElement) {
+      const codeLines = Array.from(editorElement.querySelectorAll('.view-line'));
+      return codeLines.map(line => line.textContent).join('\n');
+    }
+  } catch (e) {
+    console.error("Error extracting LeetCode solution:", e);
   }
   
-  // Fallback
   return "// Could not extract code from LeetCode editor";
+}
+
+// Update the getSolutionCode function
+function getSolutionCode() {
+  const url = window.location.href;
+  let platform, problemName, language, code;
+  
+  if (url.includes('leetcode.com/problems/')) {
+    platform = 'LeetCode';
+    problemName = extractLeetCodeProblemName();
+    language = detectLeetCodeLanguage();
+    code = extractLeetCodeSolution(); // Use our new extraction function
+  }
+  else if (url.includes('practice.geeksforgeeks.org/problems/')) {
+    platform = 'GeeksForGeeks';
+    problemName = extractGFGProblemName();
+    language = detectGFGLanguage();
+    code = extractCompleteEditorCode('gfg');
+  }
+  else if (url.includes('codeforces.com/problemset/problem/')) {
+    platform = 'CodeForces';
+    problemName = extractCodeForcesProblemName();
+    language = detectCodeForcesLanguage();
+    code = extractCompleteEditorCode('codeforces');
+  }
+  else if (url.includes('codechef.com/problems/')) {
+    platform = 'CodeChef';
+    problemName = extractCodeChefProblemName();
+    language = detectCodeChefLanguage();
+    code = extractCompleteEditorCode('codechef');
+  }
+  
+  return { platform, problemName, language, code };
 }
 
 // GeeksForGeeks
@@ -505,7 +573,11 @@ function extractProblemStatement() {
   
   // LeetCode
   if (url.includes('leetcode.com/problems/')) {
-    const problemContent = document.querySelector('.question-content');
+    // Try new selectors for LeetCode's updated UI
+    const problemContent = document.querySelector('.description__24sA') || 
+                         document.querySelector('.question-content') ||
+                         document.querySelector('[data-cy="question-title"]');
+    
     if (problemContent) {
       return problemContent.innerText;
     }
@@ -542,172 +614,13 @@ function extractProblemStatement() {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getSolutionCode") {
     const solution = getSolutionCode();
-    
-    // For LeetCode, we need to handle the Promise
-    if (window.location.href.includes('leetcode.com')) {
-      // This is a Promise
-      solution.code.then(code => {
-        if (code) {
-          solution.code = code;
-        }
-        solution.problemStatement = extractProblemStatement();
-        
-        // Log the extracted code for debugging
-        console.log("Extracted code length:", solution.code ? solution.code.length : 0);
-        
-        sendResponse(solution);
-      }).catch(error => {
-        console.error("Error getting LeetCode code:", error);
-        solution.code = "// Error extracting code: " + error.message;
-        solution.problemStatement = extractProblemStatement();
-        sendResponse(solution);
-      });
-      
-      return true; // Keep the message channel open for async response
-    }
-    
-    // For other platforms, continue with synchronous response
     solution.problemStatement = extractProblemStatement();
     
     // Log the extracted code for debugging
-    console.log("Extracted code length:", solution.code ? solution.code.length : 0);
+    console.log("Extracted code:", solution.code);
+    console.log("Extracted problem statement:", solution.problemStatement);
     
     sendResponse(solution);
-    return true; // Keep the message channel open for async response
   }
-  
-  // Handle other message types...
-  return true;
+  return true; // Keep the message channel open for async response
 });
-
-// Add this function to your content.js file
-function injectScriptToGetLeetCodeEditorContent() {
-  return new Promise((resolve) => {
-    // Create a script element to access the page's JavaScript context
-    const script = document.createElement('script');
-    
-    // Generate a unique ID for this extraction
-    const callbackId = 'leetcode_editor_content_' + Date.now();
-    
-    // The script to execute in the page context
-    script.textContent = `
-      (function() {
-        try {
-          // Try multiple methods to get the editor content
-          let editorContent = '';
-          
-          // Method 1: Try to get from Monaco editor
-          if (window.monaco && window.monaco.editor) {
-            const editors = window.monaco.editor.getEditors();
-            if (editors && editors.length > 0) {
-              editorContent = editors[0].getModel().getValue();
-            }
-          }
-          
-          // Method 2: Try to get from ace editor
-          if (!editorContent && window.ace) {
-            const aceEditors = document.querySelectorAll('.ace_editor');
-            for (const editor of aceEditors) {
-              if (editor.id) {
-                try {
-                  const aceEditor = window.ace.edit(editor.id);
-                  editorContent = aceEditor.getValue();
-                  break;
-                } catch (e) {}
-              }
-            }
-          }
-          
-          // Method 3: Try to get from CodeMirror
-          if (!editorContent) {
-            const codeMirrorElements = document.querySelectorAll('.CodeMirror');
-            for (const element of codeMirrorElements) {
-              if (element.CodeMirror) {
-                editorContent = element.CodeMirror.getValue();
-                break;
-              }
-            }
-          }
-          
-          // Method 4: Try to get from React component state
-          if (!editorContent) {
-            // Find React root
-            let foundReactRoot = false;
-            for (const key in window) {
-              if (key.startsWith('__LEETCODE__')) {
-                const leetcodeObj = window[key];
-                if (leetcodeObj && leetcodeObj.state && leetcodeObj.state.editor) {
-                  editorContent = leetcodeObj.state.editor.getValue();
-                  foundReactRoot = true;
-                  break;
-                }
-              }
-            }
-            
-            // If we didn't find it in the global object, try to find it in React fiber
-            if (!foundReactRoot) {
-              const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
-              for (const element of editorElements) {
-                for (const key in element) {
-                  if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
-                    let fiber = element[key];
-                    while (fiber) {
-                      if (fiber.stateNode && fiber.stateNode.editor) {
-                        editorContent = fiber.stateNode.editor.getValue();
-                        break;
-                      }
-                      fiber = fiber.return;
-                    }
-                  }
-                }
-              }
-            }
-          }
-          
-          // Send the content back to the content script
-          window.postMessage({
-            type: '${callbackId}',
-            content: editorContent
-          }, '*');
-        } catch (e) {
-          // Send error back to content script
-          window.postMessage({
-            type: '${callbackId}',
-            error: e.toString()
-          }, '*');
-        }
-      })();
-    `;
-    
-    // Add event listener to receive the message
-    const messageListener = function(event) {
-      if (event.data && event.data.type === callbackId) {
-        window.removeEventListener('message', messageListener);
-        if (event.data.error) {
-          console.error('Error getting LeetCode editor content:', event.data.error);
-          resolve(null);
-        } else {
-          resolve(event.data.content);
-        }
-      }
-    };
-    
-    window.addEventListener('message', messageListener);
-    
-    // Inject the script
-    document.head.appendChild(script);
-    
-    // Remove the script after execution
-    setTimeout(() => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    }, 100);
-    
-    // Set a timeout to resolve with null if we don't get a response
-    setTimeout(() => {
-      window.removeEventListener('message', messageListener);
-      resolve(null);
-    }, 2000);
-  });
-}
