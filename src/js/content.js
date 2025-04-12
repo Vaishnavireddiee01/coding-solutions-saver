@@ -489,7 +489,7 @@ function extractLeetCodeSolution() {
       }
     }
 
-    // Method 2: Access Monaco editor model directly
+    // Method 2: Access Monaco editor model directly (most reliable)
     if (window.monaco && window.monaco.editor) {
       const editors = window.monaco.editor.getEditors();
       if (editors && editors.length > 0) {
@@ -507,7 +507,7 @@ function extractLeetCodeSolution() {
       }
     }
 
-    // Method 3: Try to get all visible lines from DOM
+    // Method 3: Get all visible lines from DOM (fallback)
     const visibleLines = document.querySelectorAll('.view-line');
     if (visibleLines.length > 0) {
       let fullCode = '';
