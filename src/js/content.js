@@ -420,12 +420,20 @@ function extractCompleteEditorCode(platform) {
 
 // Platform-specific extraction functions
 // LeetCode
+// Update the extractLeetCodeProblemName function
 function extractLeetCodeProblemName() {
   try {
-    // Try to get from title element
-    const titleElement = document.querySelector('[data-cy="question-title"]');
+    // Try multiple selectors for different LeetCode UI versions
+    const titleElement = document.querySelector('[data-cy="question-title"], .css-v3d350, .css-1ponsav, .text-title-large');
     if (titleElement) {
       return titleElement.textContent.trim();
+    }
+    
+    // Try to get from page title as fallback
+    const titleText = document.title;
+    const match = titleText.match(/(.*?)\s*-\s*LeetCode/);
+    if (match) {
+      return match[1].trim();
     }
     
     // Fallback to URL extraction
@@ -443,12 +451,15 @@ function extractLeetCodeProblemName() {
   return 'Unknown Problem';
 }
 
+// Update the detectLeetCodeLanguage function
 function detectLeetCodeLanguage() {
   try {
-    // Try to find the language selector button
-    const languageButton = document.querySelector('[data-cy="lang-select"]');
+    // Try multiple selectors for language button
+    const languageButton = document.querySelector('[data-cy="lang-select"], .ant-select-selection-item, .relative .flex.items-center');
     if (languageButton) {
-      return languageButton.textContent.trim();
+      const languageText = languageButton.textContent.trim();
+      // Extract just the language name (remove version numbers if present)
+      return languageText.split(' ')[0].split('(')[0];
     }
     
     // Try to find language in editor settings
@@ -460,14 +471,20 @@ function detectLeetCodeLanguage() {
       }
     }
     
-    // Try to detect from code content
+    // Try to detect from code content (more robust detection)
     const code = extractLeetCodeSolution();
+    if (!code) return 'Unknown';
+    
     if (code.includes('class ') && code.includes('{') && code.includes('}')) {
       return 'Java';
-    } else if (code.includes('def ')) {
+    } else if (code.includes('def ') || code.includes('lambda:')) {
       return 'Python';
-    } else if (code.includes('function ') || code.includes('=>')) {
+    } else if (code.includes('function ') || code.includes('=>') || code.includes('console.log')) {
       return 'JavaScript';
+    } else if (code.includes('#include') || code.includes('using namespace')) {
+      return 'C++';
+    } else if (code.includes('package ') || code.includes('import ')) {
+      return 'Java';
     }
   } catch (e) {
     console.error("Error detecting language:", e);
