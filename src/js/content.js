@@ -454,12 +454,12 @@ function extractLeetCodeSolution() {
         const lineCount = model.getLineCount();
         let fullCode = '';
         
-        // Get all lines with proper indentation
+        // Get all lines including the last one
         for (let i = 1; i <= lineCount; i++) {
           const lineContent = model.getLineContent(i);
-          fullCode += lineContent + '\n';
+          fullCode += lineContent + (i < lineCount ? '\n' : ''); // Don't add newline after last line
         }
-        return fullCode.trim();
+        return fullCode;
       }
     }
 
@@ -476,9 +476,9 @@ function extractLeetCodeSolution() {
               let fullCode = '';
               
               for (let i = 1; i <= lineCount; i++) {
-                fullCode += model.getLineContent(i) + '\n';
+                fullCode += model.getLineContent(i) + (i < lineCount ? '\n' : '');
               }
-              return fullCode.trim();
+              return fullCode;
             }
             fiber = fiber.return;
           }
@@ -489,7 +489,7 @@ function extractLeetCodeSolution() {
     // Method 3: Try to get from hidden textarea (includes all code)
     const textareas = document.querySelectorAll('textarea');
     for (const textarea of textareas) {
-      if (textarea.value && (textarea.value.includes('function') || textarea.value.includes('class'))) {
+      if (textarea.value && textarea.value.trim().length > 0) {
         return textarea.value;
       }
     }
