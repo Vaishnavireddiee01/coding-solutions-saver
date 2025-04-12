@@ -495,7 +495,7 @@ function detectLeetCodeLanguage() {
 
 // LeetCode specific extraction
 // Improved LeetCode solution extraction
-// Update the extractLeetCodeSolution function
+// Update the extractLeetCodeSolution function to ensure complete code extraction
 function extractLeetCodeSolution() {
   try {
     // Method 1: Try to find the hidden textarea that contains all code
@@ -511,30 +511,14 @@ function extractLeetCodeSolution() {
       const editors = window.monaco.editor.getEditors();
       if (editors && editors.length > 0) {
         const model = editors[0].getModel();
-        const lineCount = model.getLineCount();
-        let fullCode = '';
-        
-        for (let i = 1; i <= lineCount; i++) {
-          fullCode += model.getLineContent(i);
-          if (i < lineCount) {
-            fullCode += '\n';
-          }
-        }
-        return fullCode;
+        return model.getValue(); // Get complete code directly
       }
     }
 
     // Method 3: Get all visible lines from DOM (fallback)
     const visibleLines = document.querySelectorAll('.view-line');
     if (visibleLines.length > 0) {
-      let fullCode = '';
-      visibleLines.forEach((line, index) => {
-        fullCode += line.textContent;
-        if (index < visibleLines.length - 1) {
-          fullCode += '\n';
-        }
-      });
-      return fullCode;
+      return Array.from(visibleLines).map(line => line.textContent).join('\n');
     }
 
     // Method 4: Try to access through React component state
@@ -545,17 +529,7 @@ function extractLeetCodeSolution() {
           let fiber = element[key];
           while (fiber) {
             if (fiber.stateNode && fiber.stateNode.editor) {
-              const model = fiber.stateNode.editor.getModel();
-              const lineCount = model.getLineCount();
-              let fullCode = '';
-              
-              for (let i = 1; i <= lineCount; i++) {
-                fullCode += model.getLineContent(i);
-                if (i < lineCount) {
-                  fullCode += '\n';
-                }
-              }
-              return fullCode;
+              return fiber.stateNode.editor.getModel().getValue();
             }
             fiber = fiber.return;
           }
@@ -570,58 +544,23 @@ function extractLeetCodeSolution() {
   return "// Could not extract code from LeetCode editor";
 }
 
-// Add the missing function
-function injectScriptToGetLeetCodeEditorContent() {
-  return new Promise((resolve) => {
-    try {
-      // Try to access editor through direct JavaScript injection
-      const script = document.createElement('script');
-      script.text = `
-        (function() {
-          try {
-            if (window.monaco && window.monaco.editor) {
-              const editors = window.monaco.editor.getEditors();
-              if (editors && editors.length > 0) {
-                return editors[0].getModel().getValue();
-              }
-            }
-            return null;
-          } catch(e) {
-            return null;
-          }
-        })();
-      `;
-      document.documentElement.appendChild(script);
-      const result = script.textContent;
-      document.documentElement.removeChild(script);
-      resolve(result);
-    } catch (e) {
-      resolve(null);
-    }
-  });
-}
-
-// Update the getSolutionCode function
+// Update getSolutionCode to include proper file extension
 function getSolutionCode() {
   try {
     const url = window.location.href;
     let platform, problemName, language, code;
     
-    // Set platform, problem name, and language based on the URL
     if (url.includes('leetcode.com/problems/')) {
       platform = 'LeetCode';
       problemName = extractLeetCodeProblemName();
       language = detectLeetCodeLanguage();
       code = extractLeetCodeSolution();
       
-      // Additional validation for LeetCode
-      if (!problemName || problemName === 'Unknown Problem') {
-        // Try alternative detection methods
-        const titleElement = document.querySelector('title');
-        if (titleElement) {
-          const titleText = titleElement.textContent;
-          const match = titleText.match(/^(.*?)\s*-\s*LeetCode/);
-          if (match) problemName = match[1].trim();
+      // Add language extension to code if missing
+      if (code && !code.startsWith("// Could not extract")) {
+        const extension = getLanguageExtension(language);
+        if (extension) {
+          code = `// ${problemName}.${extension}\n\n${code}`;
         }
       }
     }
@@ -666,6 +605,23 @@ function getSolutionCode() {
       problemStatement: "Problem detection failed"
     };
   }
+}
+
+// Add new helper function for language extensions
+function getLanguageExtension(language) {
+  const extensions = {
+    'Python': 'py',
+    'JavaScript': 'js',
+    'Java': 'java',
+    'C++': 'cpp',
+    'C': 'c',
+    'C#': 'cs',
+    'Ruby': 'rb',
+    'Swift': 'swift',
+    'Go': 'go',
+    'TypeScript': 'ts'
+  };
+  return extensions[language] || null;
 }
 
 // GeeksForGeeks
