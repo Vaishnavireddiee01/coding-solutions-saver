@@ -253,38 +253,38 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Function to save solution to GitHub
+  // First, add this near the top with other DOM element declarations
+  const customCategoryContainer = document.getElementById('custom-category-container');
+  const customCategoryInput = document.getElementById('custom-category');
+  
+  // Add this event listener for category selection change
+  categorySelect.addEventListener('change', function() {
+    if (this.value === 'Other') {
+      customCategoryContainer.style.display = 'block';
+    } else {
+      customCategoryContainer.style.display = 'none';
+    }
+  });
+  
+  // Update the saveSolutionToGitHub function to handle custom category
   function saveSolutionToGitHub(token, repo, branch, platform, problemName, language, category, code, problemStatement) {
-    // Log the parameters for debugging
-    console.log('Saving to GitHub with params:', { repo, branch, platform, category });
-    
-    // Make sure we're using a valid branch name (default to 'main' if there's an issue)
-    // Add 'tree' to the list of branch names to replace with 'main'
-    const safeBranch = (branch === 'array' || branch === 'tree' || category.toLowerCase() === branch.toLowerCase()) 
-      ? 'main' 
-      : branch;
-    
-    // Determine file extension based on language
-    const fileExtension = getFileExtension(language);
-    
-    // Create a sanitized filename that preserves the original problem name format
-    // Just replace characters that are invalid in filenames
-    const sanitizedProblemName = problemName.replace(/[<>:"/\\|?*]/g, '_');
-    const fileName = `${sanitizedProblemName}.${fileExtension}`;
-    
-    // Handle "Others" category by prompting for a custom folder name
-    let folderCategory = category;
-    if (category === 'Others') {
-      const customCategory = prompt('Please enter a custom category folder name:');
-      if (customCategory && customCategory.trim()) {
-        folderCategory = customCategory.trim();
+    // Get the final category name
+    let finalCategory = category;
+    if (category === 'Other') {
+      finalCategory = customCategoryInput.value.trim();
+      if (!finalCategory) {
+        showStatus('Please enter a custom category name', 'error');
+        return;
       }
     }
-    
-    // Create the folder path using the selected or custom category
-    const folderPath = `${platform}/${folderCategory}`;
-    
-    // Path in the repository
+  
+    // Rest of the function remains the same, using finalCategory instead of category
+    const fileExtension = getFileExtension(language);
+    const sanitizedProblemName = problemName.replace(/[<>:"/\\|?*]/g, '_');
+    const fileName = `${sanitizedProblemName}.${fileExtension}`;
+    const folderPath = `${platform}/${finalCategory}`;
     const path = `${folderPath}/${fileName}`;
+    
     const commitMessage = `Add solution for ${problemName} from ${platform}`;
     
     // GitHub API endpoint for creating or updating a file
