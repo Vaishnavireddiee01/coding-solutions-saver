@@ -204,63 +204,18 @@ function extractCompleteEditorCode(platform) {
               let fiber = element[key];
               while (fiber) {
                 if (fiber.stateNode && fiber.stateNode.editor) {
-                  return fiber.stateNode.editor.getValue();
+                  resolve(fiber.stateNode.editor.getValue());
+                  return;
                 }
                 fiber = fiber.return;
               }
             }
           }
         }
-      }
-      
-      // Method 3: Try to access the editor through the global ace object
-      if (window.ace) {
-        try {
-          // Find the editor container
-          const editorContainer = document.querySelector('.monaco-editor, .ace_editor');
-          if (editorContainer && editorContainer.id) {
-            const aceEditor = window.ace.edit(editorContainer.id);
-            return aceEditor.getValue();
-          }
-          
-          // Try to find any ace editor instance
-          const aceEditors = document.querySelectorAll('.ace_editor');
-          for (const editor of aceEditors) {
-            if (editor.id) {
-              const aceEditor = window.ace.edit(editor.id);
-              return aceEditor.getValue();
-            }
-          }
-        } catch (e) {
-          console.log("Error accessing ace editor:", e);
-        }
-      }
-      
-      // Method 4: Try to access the editor through the global CodeMirror object
-      const codeMirrorElements = document.querySelectorAll('.CodeMirror');
-      for (const element of codeMirrorElements) {
-        if (element.CodeMirror) {
-          return element.CodeMirror.getValue();
-        }
-      }
-      
-      // Method 5: Try to access the editor through the global editor variable
-      if (window.editor) {
-        return window.editor.getValue();
-      }
-      
-      // Method 6: Try to access the editor through the leetcode object
-      if (window.leetcode && window.leetcode.editor) {
-        return window.leetcode.editor.getValue();
-      }
-      
-      // Method 7: Try to find the textarea that might contain the code
-      const textareas = document.querySelectorAll('textarea');
-      for (const textarea of textareas) {
-        if (textarea.value && textarea.value.includes('function') || textarea.value.includes('class')) {
-          return textarea.value;
-        }
-      }
+        
+        // If all methods fail, resolve with a fallback message
+        resolve("// Could not extract complete code from LeetCode editor. Please try refreshing the page.");
+      });
     }
     
     // GeeksForGeeks specific extraction
