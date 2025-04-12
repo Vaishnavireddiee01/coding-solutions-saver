@@ -1,12 +1,32 @@
 // Content script to interact with coding platform pages
 
 // Listen for messages from the popup
+// Add retry logic for problem detection
+function detectProblemInfoWithRetry(retries = 3) {
+  const info = detectProblemInfo();
+  
+  if (!info || !info.problemName || info.problemName === 'Unknown Problem') {
+    if (retries > 0) {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve(detectProblemInfoWithRetry(retries - 1));
+        }, 500);
+      });
+    }
+  }
+  
+  return info;
+}
+
+// Update the message listener
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getProblemInfo") {
-    const info = detectProblemInfo();
-    sendResponse(info);
+    detectProblemInfoWithRetry().then(info => {
+      sendResponse(info);
+    });
     return true;
-  } else if (request.action === "getSolutionCode") {
+  }
+  else if (request.action === "getSolutionCode") {
     // Use the improved code extraction methods
     let solution = getSolutionCode();
     
