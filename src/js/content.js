@@ -481,7 +481,15 @@ function detectLeetCodeLanguage() {
 // Update the extractLeetCodeSolution function
 function extractLeetCodeSolution() {
   try {
-    // Method 1: Access Monaco editor model directly
+    // Method 1: Try to find the hidden textarea that contains all code
+    const hiddenTextareas = document.querySelectorAll('textarea[class*="inputarea"]');
+    for (const textarea of hiddenTextareas) {
+      if (textarea.value && textarea.value.trim().length > 0) {
+        return textarea.value;
+      }
+    }
+
+    // Method 2: Access Monaco editor model directly
     if (window.monaco && window.monaco.editor) {
       const editors = window.monaco.editor.getEditors();
       if (editors && editors.length > 0) {
@@ -489,19 +497,30 @@ function extractLeetCodeSolution() {
         const lineCount = model.getLineCount();
         let fullCode = '';
         
-        // Get all lines including the last one
         for (let i = 1; i <= lineCount; i++) {
-          const lineContent = model.getLineContent(i);
-          fullCode += lineContent;
+          fullCode += model.getLineContent(i);
           if (i < lineCount) {
-            fullCode += '\n'; // Only add newline if not last line
+            fullCode += '\n';
           }
         }
         return fullCode;
       }
     }
 
-    // Method 2: Access through React component state
+    // Method 3: Try to get all visible lines from DOM
+    const visibleLines = document.querySelectorAll('.view-line');
+    if (visibleLines.length > 0) {
+      let fullCode = '';
+      visibleLines.forEach((line, index) => {
+        fullCode += line.textContent;
+        if (index < visibleLines.length - 1) {
+          fullCode += '\n';
+        }
+      });
+      return fullCode;
+    }
+
+    // Method 4: Try to access through React component state
     const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
     for (const element of editorElements) {
       for (const key in element) {
@@ -516,7 +535,7 @@ function extractLeetCodeSolution() {
               for (let i = 1; i <= lineCount; i++) {
                 fullCode += model.getLineContent(i);
                 if (i < lineCount) {
-                  fullCode += '\n'; // Only add newline if not last line
+                  fullCode += '\n';
                 }
               }
               return fullCode;
@@ -524,14 +543,6 @@ function extractLeetCodeSolution() {
             fiber = fiber.return;
           }
         }
-      }
-    }
-
-    // Method 3: Try to get from hidden textarea (includes all code)
-    const textareas = document.querySelectorAll('textarea');
-    for (const textarea of textareas) {
-      if (textarea.value && textarea.value.trim().length > 0) {
-        return textarea.value;
       }
     }
 
