@@ -6,13 +6,91 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     const info = detectProblemInfo();
     sendResponse(info);
   } else if (request.action === "getSolutionCode") {
-    const solution = getSolutionCode();
+    // Use the improved code extraction methods
+    let solution = getSolutionCode();
+    
+    // Try to get complete code using more robust methods
+    const completeCode = getCompleteCode();
+    if (completeCode) {
+      solution.code = completeCode;
+    }
+    
     // Also extract the problem statement
     solution.problemStatement = extractProblemStatement();
     sendResponse(solution);
   }
   return true; // Keep the message channel open for async responses
 });
+
+// Add this new function to get complete code using multiple methods
+function getCompleteCode() {
+  // Different platforms have different editor structures
+  const url = window.location.href;
+  
+  // LeetCode
+  if (url.includes('leetcode.com')) {
+    // Try to get code from Monaco editor if available
+    try {
+      if (window.monaco && window.monaco.editor) {
+        const editors = window.monaco.editor.getEditors();
+        if (editors && editors.length > 0) {
+          return editors[0].getModel().getValue();
+        }
+      }
+      
+      // Try to access editor through global variables
+      if (window.codeEditor) {
+        return window.codeEditor.getValue();
+      }
+      
+      // Try to find the editor instance
+      const editorElement = document.querySelector('.monaco-editor');
+      if (editorElement && editorElement.__proto__.editor) {
+        return editorElement.__proto__.editor.getModel().getValue();
+      }
+    } catch (e) {
+      console.log("Error accessing LeetCode editor:", e);
+    }
+  }
+  
+  // Try CodeMirror (used by many platforms)
+  try {
+    const codeMirror = document.querySelector('.CodeMirror');
+    if (codeMirror && codeMirror.CodeMirror) {
+      return codeMirror.CodeMirror.getValue();
+    }
+  } catch (e) {
+    console.log("Error accessing CodeMirror:", e);
+  }
+  
+  // Try Ace Editor (used by many platforms)
+  try {
+    if (window.ace && window.ace.edit) {
+      const aceEditors = document.querySelectorAll('.ace_editor');
+      for (const editor of aceEditors) {
+        const id = editor.id;
+        if (id) {
+          const aceEditor = window.ace.edit(id);
+          return aceEditor.getValue();
+        }
+      }
+    }
+  } catch (e) {
+    console.log("Error accessing Ace editor:", e);
+  }
+  
+  // Generic fallback - try to get all text from editor elements
+  const editorElements = document.querySelectorAll('.monaco-editor, .CodeMirror, .ace_editor');
+  for (const editor of editorElements) {
+    const lines = editor.querySelectorAll('.view-line, .CodeMirror-line, .ace_line');
+    if (lines.length > 0) {
+      return Array.from(lines).map(line => line.textContent).join('\n');
+    }
+  }
+  
+  // Return null if we couldn't get the code
+  return null;
+}
 
 // Detect which coding platform we're on and extract problem info
 function detectProblemInfo() {
@@ -271,3 +349,7 @@ function extractProblemStatement() {
   
   return "Problem statement could not be extracted.";
 }
+
+// REMOVE the duplicate listener at the bottom of your file (lines 274-323)
+// Delete from "// When receiving a message to get the solution code" 
+// to "// Other helper functions remain the same
