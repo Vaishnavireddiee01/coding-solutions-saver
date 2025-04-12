@@ -772,21 +772,22 @@ function extractProblemStatement() {
 // When receiving a message to get the solution code
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getSolutionCode") {
-    try {
-      const solution = getSolutionCode();
-      if (!solution || !solution.platform) {
-        throw new Error('Failed to detect platform');
+    // Immediately indicate we'll respond asynchronously
+    setTimeout(() => {
+      try {
+        const solution = getSolutionCode();
+        sendResponse(solution);
+      } catch (error) {
+        sendResponse({
+          platform: 'Unknown',
+          problemName: 'Unknown Problem',
+          language: 'Unknown',
+          code: "// Error: " + error.message,
+          problemStatement: "Detection failed"
+        });
       }
-      sendResponse(solution);
-    } catch (error) {
-      sendResponse({
-        platform: 'Unknown',
-        problemName: 'Unknown Problem',
-        language: 'Unknown',
-        code: "// Error: " + error.message,
-        problemStatement: "Detection failed"
-      });
-    }
-    return true;
+    }, 0);
+    
+    return true; // Keep port open for async response
   }
 });

@@ -227,68 +227,46 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Update the saveSolutionBtn click handler
   saveSolutionBtn.addEventListener('click', function() {
-    if (isSaving) {
-      showStatus('Already saving, please wait...', 'info');
-      return;
-    }
-    
-    isSaving = true;
-    saveSolutionBtn.disabled = true;
-    showStatus('Saving to GitHub...', 'info');
-    
-    chrome.storage.local.get(['githubToken', 'repoName', 'branchName'], function(data) {
-      if (!data.githubToken || !data.repoName) {
-        showStatus('Please connect to GitHub and set repository settings', 'error');
-        isSaving = false;
-        saveSolutionBtn.disabled = false;
-        return;
-      }
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      const currentTab = tabs[0];
       
-      chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        const currentTab = tabs[0];
-        if (!currentTab) {
-          showStatus('No active tab found', 'error');
-          isSaving = false;
-          saveSolutionBtn.disabled = false;
-          return;
-        }
+      // First inject content script
+      chrome.scripting.executeScript({
+        target: {tabId: currentTab.id},
+        files: ['js/content.js']
+      }).then(() => {
+        // Now send message with timeout
+        const messageTimeout = setTimeout(() => {
+          showStatus('Timeout: Could not get solution from page', 'error');
+        }, 5000); // 5 second timeout
   
-        // First ensure content script is injected
-        chrome.scripting.executeScript({
-          target: {tabId: currentTab.id},
-          files: ['js/content.js']
-        }).then(() => {
-          // Now send message to get problem info
-          chrome.tabs.sendMessage(currentTab.id, {action: "getProblemInfo"}, function(response) {
-            if (!response || !response.platform) {
-              showStatus('Failed to detect problem. Please refresh the page and try again.', 'error');
-              isSaving = false;
-              saveSolutionBtn.disabled = false;
-              return;
-            }
-  
-            // Proceed with saving
-            saveSolutionToGitHub(
-              data.githubToken,
-              data.repoName,
-              data.branchName || 'main',
-              response.platform,
-              response.problemName,
-              response.language,
-              categorySelect.value,
-              response.code,
-              response.problemStatement
-            ).finally(() => {
-              isSaving = false;
-              saveSolutionBtn.disabled = false;
-            });
+        chrome.tabs.sendMessage(currentTab.id, {action: "getSolutionCode"}, function(response) {
+          clearTimeout(messageTimeout);
+          
+          if (!response) {
+            showStatus('Failed to get solution from page', 'error');
+            return;
+          }
+          
+          // Proceed with saving
+          saveSolutionToGitHub(
+            data.githubToken,
+            data.repoName,
+            data.branchName || 'main',
+            response.platform,
+            response.problemName,
+            response.language,
+            categorySelect.value,
+            response.code,
+            response.problemStatement
+          ).finally(() => {
+            isSaving = false;
+            saveSolutionBtn.disabled = false;
           });
-        }).catch(error => {
-          console.error('Script injection failed:', error);
-          showStatus('Failed to detect problem. Please refresh the page and try again.', 'error');
-          isSaving = false;
-          saveSolutionBtn.disabled = false;
         });
+      }).catch(error => {
+        console.error('Script injection failed:', error);
+        showStatus('Failed to access page content', 'error');
       });
     });
   });
