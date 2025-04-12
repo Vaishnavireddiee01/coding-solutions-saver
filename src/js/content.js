@@ -393,31 +393,39 @@ function detectLeetCodeLanguage() {
 }
 
 // LeetCode specific extraction
+// Update the extractLeetCodeSolution function to better handle line extraction
 function extractLeetCodeSolution() {
-  // Try multiple methods to get the editor content
   try {
     // Method 1: Access Monaco editor directly
     if (window.monaco && window.monaco.editor) {
       const editors = window.monaco.editor.getEditors();
       if (editors && editors.length > 0) {
-        return editors[0].getModel().getValue();
+        const model = editors[0].getModel();
+        const lineCount = model.getLineCount();
+        let fullCode = '';
+        
+        // Get all lines including the last one
+        for (let i = 1; i <= lineCount; i++) {
+          fullCode += model.getLineContent(i) + '\n';
+        }
+        return fullCode.trim(); // Remove trailing newline
       }
     }
 
-    // Method 2: Access through React components
-    const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
-    for (const element of editorElements) {
-      for (const key in element) {
-        if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
-          let fiber = element[key];
-          while (fiber) {
-            if (fiber.stateNode && fiber.stateNode.editor) {
-              return fiber.stateNode.editor.getValue();
-            }
-            fiber = fiber.return;
-          }
+    // Method 2: Fallback to DOM scraping with improved line handling
+    const editorElement = document.querySelector('.monaco-editor');
+    if (editorElement) {
+      const codeLines = Array.from(editorElement.querySelectorAll('.view-line'));
+      return codeLines.map(line => {
+        // Get all text nodes including the last one
+        const textNodes = [];
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while (node = walker.nextNode()) {
+          textNodes.push(node.nodeValue);
         }
-      }
+        return textNodes.join('').trim();
+      }).join('\n');
     }
 
     // Method 3: Try to find the hidden textarea
