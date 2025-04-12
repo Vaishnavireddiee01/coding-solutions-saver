@@ -478,6 +478,7 @@ function detectLeetCodeLanguage() {
 
 // LeetCode specific extraction
 // Improved LeetCode solution extraction
+// Update the extractLeetCodeSolution function
 function extractLeetCodeSolution() {
   try {
     // Method 1: Access Monaco editor model directly
@@ -491,7 +492,10 @@ function extractLeetCodeSolution() {
         // Get all lines including the last one
         for (let i = 1; i <= lineCount; i++) {
           const lineContent = model.getLineContent(i);
-          fullCode += lineContent + (i < lineCount ? '\n' : ''); // Don't add newline after last line
+          fullCode += lineContent;
+          if (i < lineCount) {
+            fullCode += '\n'; // Only add newline if not last line
+          }
         }
         return fullCode;
       }
@@ -510,7 +514,10 @@ function extractLeetCodeSolution() {
               let fullCode = '';
               
               for (let i = 1; i <= lineCount; i++) {
-                fullCode += model.getLineContent(i) + (i < lineCount ? '\n' : '');
+                fullCode += model.getLineContent(i);
+                if (i < lineCount) {
+                  fullCode += '\n'; // Only add newline if not last line
+                }
               }
               return fullCode;
             }
