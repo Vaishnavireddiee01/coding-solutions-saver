@@ -5,18 +5,40 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getProblemInfo") {
     const info = detectProblemInfo();
     sendResponse(info);
+    return true;
   } else if (request.action === "getSolutionCode") {
     // Use the improved code extraction methods
     let solution = getSolutionCode();
     
-    // Try to get complete code using more robust methods
-    const completeCode = getCompleteCode();
-    if (completeCode) {
-      solution.code = completeCode;
+    // For LeetCode, we need to handle the Promise
+    if (window.location.href.includes('leetcode.com') && solution.code instanceof Promise) {
+      // This is a Promise
+      solution.code.then(code => {
+        if (code) {
+          solution.code = code;
+        }
+        solution.problemStatement = extractProblemStatement();
+        
+        // Log the extracted code for debugging
+        console.log("Extracted code length:", solution.code ? solution.code.length : 0);
+        
+        sendResponse(solution);
+      }).catch(error => {
+        console.error("Error getting LeetCode code:", error);
+        solution.code = "// Error extracting code: " + error.message;
+        solution.problemStatement = extractProblemStatement();
+        sendResponse(solution);
+      });
+      
+      return true; // Keep the message channel open for async response
     }
     
-    // Also extract the problem statement
+    // For other platforms, continue with synchronous response
     solution.problemStatement = extractProblemStatement();
+    
+    // Log the extracted code for debugging
+    console.log("Extracted code length:", solution.code ? solution.code.length : 0);
+    
     sendResponse(solution);
   }
   return true; // Keep the message channel open for async responses
