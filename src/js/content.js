@@ -135,6 +135,37 @@ function getCompleteCode() {
 }
 
 // Detect which coding platform we're on and extract problem info
+// Add this function before detectProblemInfo()
+function extractLeetCodeProblemName() {
+  try {
+    // Try multiple selectors for different LeetCode UI versions
+    const titleElement = document.querySelector('[data-cy="question-title"], .css-v3d350, .css-1ponsav, .text-title-large');
+    if (titleElement) {
+      return titleElement.textContent.trim();
+    }
+    
+    // Try to get from page title as fallback
+    const titleText = document.title;
+    const match = titleText.match(/(.*?)\s*-\s*LeetCode/);
+    if (match) {
+      return match[1].trim();
+    }
+    
+    // Fallback to URL extraction
+    const pathParts = window.location.pathname.split('/');
+    const problemSlug = pathParts[pathParts.indexOf('problems') + 1];
+    if (problemSlug) {
+      return problemSlug.split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+  } catch (e) {
+    console.error("Error extracting problem name:", e);
+  }
+  
+  return 'Unknown Problem';
+}
+
 function detectProblemInfo() {
   const url = window.location.href;
   
@@ -180,375 +211,11 @@ function detectProblemInfo() {
 
 // Extract solution code based on the platform
 // Improve the getSolutionCode function to better access editor instances
-// Update the getSolutionCode function
+// Update the getSolutionCode function to ensure proper file extensions
 function getSolutionCode() {
   try {
     const url = window.location.href;
-    let platform, problemName, language, code;
-    
-    // Set platform, problem name, and language based on the URL
-    if (url.includes('leetcode.com/problems/')) {
-      platform = 'LeetCode';
-      problemName = extractLeetCodeProblemName();
-      language = detectLeetCodeLanguage();
-      code = extractLeetCodeSolution();
-      
-      // Additional validation for LeetCode
-      if (!problemName || problemName === 'Unknown Problem') {
-        // Try alternative detection methods
-        const titleElement = document.querySelector('title');
-        if (titleElement) {
-          const titleText = titleElement.textContent;
-          const match = titleText.match(/^(.*?)\s*-\s*LeetCode/);
-          if (match) problemName = match[1].trim();
-        }
-      }
-    }
-    else if (url.includes('practice.geeksforgeeks.org/problems/')) {
-      platform = 'GeeksForGeeks';
-      problemName = extractGFGProblemName();
-      language = detectGFGLanguage();
-      code = extractCompleteEditorCode('gfg');
-    }
-    else if (url.includes('codeforces.com/problemset/problem/')) {
-      platform = 'CodeForces';
-      problemName = extractCodeForcesProblemName();
-      language = detectCodeForcesLanguage();
-      code = extractCompleteEditorCode('codeforces');
-    }
-    else if (url.includes('codechef.com/problems/')) {
-      platform = 'CodeChef';
-      problemName = extractCodeChefProblemName();
-      language = detectCodeChefLanguage();
-      code = extractCompleteEditorCode('codechef');
-    }
-    
-    // Final validation before returning
-    if (!problemName || problemName === 'Unknown Problem') {
-      throw new Error('Problem name could not be detected');
-    }
-    
-    return { 
-      platform, 
-      problemName, 
-      language, 
-      code: code || "// No code detected",
-      problemStatement: extractProblemStatement() 
-    };
-  } catch (error) {
-    console.error('Error getting solution:', error);
-    return {
-      platform: 'Unknown',
-      problemName: 'Unknown Problem',
-      language: 'Unknown',
-      code: "// Error detecting problem: " + error.message,
-      problemStatement: "Problem detection failed"
-    };
-  }
-}
-
-// New function to extract complete code from various editor types
-function extractCompleteEditorCode(platform) {
-  // Try to access editor directly through global variables first
-  try {
-    // LeetCode specific extraction
-    if (platform === 'leetcode') {
-      // First try to inject a script to get the editor content directly
-      return new Promise(async (resolve) => {
-        const injectedContent = await injectScriptToGetLeetCodeEditorContent();
-        if (injectedContent) {
-          resolve(injectedContent);
-          return;
-        }
-        
-        // If injection failed, try the other methods
-        // Method 1: Try to access Monaco editor directly
-        if (window.monaco && window.monaco.editor) {
-          const editors = window.monaco.editor.getEditors();
-          if (editors && editors.length > 0) {
-            resolve(editors[0].getModel().getValue());
-            return;
-          }
-        }
-        
-        // Method 2: Try to access editor through React components
-        const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
-        for (const element of editorElements) {
-          // Access React instance
-          for (const key in element) {
-            if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
-              let fiber = element[key];
-              while (fiber) {
-                if (fiber.stateNode && fiber.stateNode.editor) {
-                  resolve(fiber.stateNode.editor.getValue());
-                  return;
-                }
-                fiber = fiber.return;
-              }
-            }
-          }
-        }
-        
-        // If all methods fail, resolve with a fallback message
-        resolve("// Could not extract complete code from LeetCode editor. Please try refreshing the page.");
-      });
-    }
-    
-    // GeeksForGeeks specific extraction
-    if (platform === 'gfg') {
-      // Try to access Ace editor
-      if (window.ace && window.ace.edit) {
-        const aceEditors = document.querySelectorAll('.ace_editor');
-        for (const editor of aceEditors) {
-          if (editor.id) {
-            try {
-              const aceEditor = window.ace.edit(editor.id);
-              return aceEditor.getValue();
-            } catch (e) {
-              console.log("Error accessing GFG ace editor:", e);
-            }
-          }
-        }
-      }
-    }
-    
-    // CodeForces specific extraction
-    if (platform === 'codeforces') {
-      // Try to access CodeMirror editor
-      const codeMirrorElements = document.querySelectorAll('.CodeMirror');
-      for (const element of codeMirrorElements) {
-        if (element.CodeMirror) {
-          return element.CodeMirror.getValue();
-        }
-      }
-    }
-    
-    // CodeChef specific extraction
-    if (platform === 'codechef') {
-      // Try to access Monaco editor
-      if (window.monaco && window.monaco.editor) {
-        const editors = window.monaco.editor.getEditors();
-        if (editors && editors.length > 0) {
-          return editors[0].getModel().getValue();
-        }
-      }
-      
-      // Try to access Ace editor
-      if (window.ace && window.ace.edit) {
-        const aceEditors = document.querySelectorAll('.ace_editor');
-        for (const editor of aceEditors) {
-          if (editor.id) {
-            try {
-              const aceEditor = window.ace.edit(editor.id);
-              return aceEditor.getValue();
-            } catch (e) {
-              console.log("Error accessing CodeChef ace editor:", e);
-            }
-          }
-        }
-      }
-    }
-    
-    // Generic editor access methods (try all common editor types)
-    
-    // Try Monaco editor (used by LeetCode, VS Code web)
-    if (window.monaco && window.monaco.editor) {
-      const editors = window.monaco.editor.getEditors();
-      if (editors && editors.length > 0) {
-        return editors[0].getModel().getValue();
-      }
-    }
-    
-    // Try CodeMirror (used by many platforms)
-    const codeMirrorElements = document.querySelectorAll('.CodeMirror');
-    for (const element of codeMirrorElements) {
-      if (element.CodeMirror) {
-        return element.CodeMirror.getValue();
-      }
-    }
-    
-    // Try Ace Editor (used by many platforms)
-    if (window.ace && window.ace.edit) {
-      const aceEditors = document.querySelectorAll('.ace_editor');
-      for (const editor of aceEditors) {
-        if (editor.id) {
-          try {
-            const aceEditor = window.ace.edit(editor.id);
-            return aceEditor.getValue();
-          } catch (e) {
-            console.log("Error accessing ace editor:", e);
-          }
-        }
-      }
-    }
-    
-    // Try to find editor in global variables
-    if (window.editor) {
-      return window.editor.getValue();
-    }
-    
-    // Last resort: Try to extract from DOM elements
-    // This is less reliable but might work in some cases
-    const editorElements = document.querySelectorAll('.monaco-editor, .CodeMirror, .ace_editor');
-    for (const editor of editorElements) {
-      // For Monaco editor
-      const monacoLines = editor.querySelectorAll('.view-line');
-      if (monacoLines.length > 0) {
-        return Array.from(monacoLines).map(line => line.textContent).join('\n');
-      }
-      
-      // For CodeMirror
-      const cmLines = editor.querySelectorAll('.CodeMirror-line');
-      if (cmLines.length > 0) {
-        return Array.from(cmLines).map(line => line.textContent).join('\n');
-      }
-      
-      // For Ace editor
-      const aceLines = editor.querySelectorAll('.ace_line');
-      if (aceLines.length > 0) {
-        return Array.from(aceLines).map(line => line.textContent).join('\n');
-      }
-    }
-    
-  } catch (e) {
-    console.error("Error extracting code:", e);
-  }
-  
-  // If all else fails, return a message
-  return "// Could not extract complete code. Please try refreshing the page.";
-}
-
-// Platform-specific extraction functions
-// LeetCode
-// Update the extractLeetCodeProblemName function
-function extractLeetCodeProblemName() {
-  try {
-    // Try multiple selectors for different LeetCode UI versions
-    const titleElement = document.querySelector('[data-cy="question-title"], .css-v3d350, .css-1ponsav, .text-title-large');
-    if (titleElement) {
-      return titleElement.textContent.trim();
-    }
-    
-    // Try to get from page title as fallback
-    const titleText = document.title;
-    const match = titleText.match(/(.*?)\s*-\s*LeetCode/);
-    if (match) {
-      return match[1].trim();
-    }
-    
-    // Fallback to URL extraction
-    const pathParts = window.location.pathname.split('/');
-    const problemSlug = pathParts[pathParts.indexOf('problems') + 1];
-    if (problemSlug) {
-      return problemSlug.split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-    }
-  } catch (e) {
-    console.error("Error extracting problem name:", e);
-  }
-  
-  return 'Unknown Problem';
-}
-
-// Update the detectLeetCodeLanguage function
-function detectLeetCodeLanguage() {
-  try {
-    // Try multiple selectors for language button
-    const languageButton = document.querySelector('[data-cy="lang-select"], .ant-select-selection-item, .relative .flex.items-center');
-    if (languageButton) {
-      const languageText = languageButton.textContent.trim();
-      // Extract just the language name (remove version numbers if present)
-      return languageText.split(' ')[0].split('(')[0];
-    }
-    
-    // Try to find language in editor settings
-    const editorSettings = document.querySelector('.monaco-editor');
-    if (editorSettings) {
-      const languageMatch = editorSettings.className.match(/language-(\w+)/);
-      if (languageMatch) {
-        return languageMatch[1];
-      }
-    }
-    
-    // Try to detect from code content (more robust detection)
-    const code = extractLeetCodeSolution();
-    if (!code) return 'Unknown';
-    
-    if (code.includes('class ') && code.includes('{') && code.includes('}')) {
-      return 'Java';
-    } else if (code.includes('def ') || code.includes('lambda:')) {
-      return 'Python';
-    } else if (code.includes('function ') || code.includes('=>') || code.includes('console.log')) {
-      return 'JavaScript';
-    } else if (code.includes('#include') || code.includes('using namespace')) {
-      return 'C++';
-    } else if (code.includes('package ') || code.includes('import ')) {
-      return 'Java';
-    }
-  } catch (e) {
-    console.error("Error detecting language:", e);
-  }
-  
-  return 'Unknown';
-}
-
-// LeetCode specific extraction
-// Improved LeetCode solution extraction
-// Update the extractLeetCodeSolution function to ensure complete code extraction
-function extractLeetCodeSolution() {
-  try {
-    // Method 1: Try to find the hidden textarea that contains all code
-    const hiddenTextareas = document.querySelectorAll('textarea[class*="inputarea"]');
-    for (const textarea of hiddenTextareas) {
-      if (textarea.value && textarea.value.trim().length > 0) {
-        return textarea.value;
-      }
-    }
-
-    // Method 2: Access Monaco editor model directly (most reliable)
-    if (window.monaco && window.monaco.editor) {
-      const editors = window.monaco.editor.getEditors();
-      if (editors && editors.length > 0) {
-        const model = editors[0].getModel();
-        return model.getValue(); // Get complete code directly
-      }
-    }
-
-    // Method 3: Get all visible lines from DOM (fallback)
-    const visibleLines = document.querySelectorAll('.view-line');
-    if (visibleLines.length > 0) {
-      return Array.from(visibleLines).map(line => line.textContent).join('\n');
-    }
-
-    // Method 4: Try to access through React component state
-    const editorElements = document.querySelectorAll('[data-cy="code-editor"]');
-    for (const element of editorElements) {
-      for (const key in element) {
-        if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
-          let fiber = element[key];
-          while (fiber) {
-            if (fiber.stateNode && fiber.stateNode.editor) {
-              return fiber.stateNode.editor.getModel().getValue();
-            }
-            fiber = fiber.return;
-          }
-        }
-      }
-    }
-
-  } catch (e) {
-    console.error("Error extracting LeetCode solution:", e);
-  }
-  
-  return "// Could not extract code from LeetCode editor";
-}
-
-// Update getSolutionCode to include proper file extension
-function getSolutionCode() {
-  try {
-    const url = window.location.href;
-    let platform, problemName, language, code;
+    let platform, problemName, language, code, fileExtension = 'txt';
     
     if (url.includes('leetcode.com/problems/')) {
       platform = 'LeetCode';
@@ -556,12 +223,13 @@ function getSolutionCode() {
       language = detectLeetCodeLanguage();
       code = extractLeetCodeSolution();
       
-      // Add language extension to code if missing
+      // Get proper file extension based on language
+      fileExtension = getLanguageExtension(language) || 'txt';
+      
       if (code && !code.startsWith("// Could not extract")) {
-        const extension = getLanguageExtension(language);
-        if (extension) {
-          code = `// ${problemName}.${extension}\n\n${code}`;
-        }
+        // Format filename and add extension comment at top
+        const formattedName = problemName.replace(/[^a-zA-Z0-9]/g, '_');
+        code = `// ${formattedName}.${fileExtension}\n\n${code}`;
       }
     }
     else if (url.includes('practice.geeksforgeeks.org/problems/')) {
@@ -588,10 +256,18 @@ function getSolutionCode() {
       throw new Error('Problem name could not be detected');
     }
     
+    // Ensure fileExtension is properly set based on language
+    if (!fileExtension || fileExtension === 'txt') {
+      // Try to determine extension from language if not already set
+      fileExtension = getLanguageExtension(language) || 'txt';
+      console.log("Using file extension:", fileExtension, "for language:", language);
+    }
+    
     return { 
       platform, 
       problemName, 
-      language, 
+      language,
+      fileExtension, // Make sure this is passed to background.js
       code: code || "// No code detected",
       problemStatement: extractProblemStatement() 
     };
@@ -601,27 +277,74 @@ function getSolutionCode() {
       platform: 'Unknown',
       problemName: 'Unknown Problem',
       language: 'Unknown',
+      fileExtension: 'txt',
       code: "// Error detecting problem: " + error.message,
       problemStatement: "Problem detection failed"
     };
   }
 }
+
+// Update the message listener to use fileExtension
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  if (request.action === "getSolutionCode") {
+    const solution = getSolutionCode();
+    // Pass fileExtension to the background script
+    sendResponse({
+      ...solution,
+      fileExtension: solution.fileExtension || 'txt'
+    });
+    return true;
+  }
+  else if (request.action === "getProblemInfo") {
+    detectProblemInfoWithRetry().then(info => {
+      sendResponse(info);
+    });
+    return true;
+  }
+  return true; // Keep the message channel open for async responses
+});
 
 // Add new helper function for language extensions
 function getLanguageExtension(language) {
+  if (!language) return 'txt';
+  
+  // Normalize language name to handle variations
+  const normalizedLang = language.toLowerCase().trim();
+  
+  // Map of language names to file extensions
   const extensions = {
-    'Python': 'py',
-    'JavaScript': 'js',
-    'Java': 'java',
-    'C++': 'cpp',
-    'C': 'c',
-    'C#': 'cs',
-    'Ruby': 'rb',
-    'Swift': 'swift',
-    'Go': 'go',
-    'TypeScript': 'ts'
+    'python': 'py',
+    'python3': 'py',
+    'javascript': 'js',
+    'typescript': 'ts',
+    'java': 'java',
+    'c++': 'cpp',
+    'cpp': 'cpp',
+    'c': 'c',
+    'c#': 'cs',
+    'csharp': 'cs',
+    'ruby': 'rb',
+    'swift': 'swift',
+    'go': 'go',
+    'golang': 'go',
+    'kotlin': 'kt',
+    'rust': 'rs',
+    'scala': 'scala',
+    'php': 'php',
+    'html': 'html',
+    'css': 'css'
   };
-  return extensions[language] || null;
+  
+  // Try to find a match in our map
+  for (const [key, value] of Object.entries(extensions)) {
+    if (normalizedLang.includes(key)) {
+      console.log(`Matched language "${language}" to extension "${value}"`);
+      return value;
+    }
+  }
+  
+  // Default fallback
+  return 'txt';
 }
 
 // GeeksForGeeks
@@ -761,18 +484,192 @@ function extractProblemStatement() {
 }
 
 // When receiving a message to get the solution code
+// Update the message listener to ensure complete code and proper extension
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "getSolutionCode") {
     // Immediately indicate we'll respond asynchronously
     setTimeout(() => {
       try {
         const solution = getSolutionCode();
+        
+        // Ensure fileExtension is properly set
+        if (!solution.fileExtension || solution.fileExtension === 'txt') {
+          solution.fileExtension = getLanguageExtension(solution.language);
+          console.log("Using file extension:", solution.fileExtension);
+        }
+        
+        // Log the code length to verify we're sending the complete code
+        console.log("Sending solution with code length:", solution.code ? solution.code.length : 0);
+        
         sendResponse(solution);
       } catch (error) {
+        console.error("Error in getSolutionCode:", error);
         sendResponse({
           platform: 'Unknown',
           problemName: 'Unknown Problem',
           language: 'Unknown',
+          fileExtension: 'txt',
+          code: "// Error: " + error.message,
+          problemStatement: "Detection failed"
+        });
+      }
+    }, 0);
+    
+    return true; // Keep port open for async response
+  }
+});
+
+
+function detectLeetCodeLanguage() {
+  try {
+    // Try multiple selectors for language button
+    const languageButton = document.querySelector('[data-cy="lang-select"], .ant-select-selection-item, .relative .flex.items-center');
+    if (languageButton) {
+      const languageText = languageButton.textContent.trim();
+      // Extract just the language name (remove version numbers if present)
+      return languageText.split(' ')[0].split('(')[0];
+    }
+    
+    // Try to find language in editor settings
+    const editorSettings = document.querySelector('.monaco-editor');
+    if (editorSettings) {
+      const languageMatch = editorSettings.className.match(/language-(\w+)/);
+      if (languageMatch) {
+        return languageMatch[1];
+      }
+    }
+    
+    // Try to detect from code content (more robust detection)
+    const code = extractLeetCodeSolution();
+    if (!code) return 'Unknown';
+    
+    if (code.includes('class ') && code.includes('{') && code.includes('}')) {
+      return 'Java';
+    } else if (code.includes('def ') || code.includes('lambda:')) {
+      return 'Python';
+    } else if (code.includes('function ') || code.includes('=>') || code.includes('console.log')) {
+      return 'JavaScript';
+    } else if (code.includes('#include') || code.includes('using namespace')) {
+      return 'C++';
+    } else if (code.includes('package ') || code.includes('import ')) {
+      return 'Java';
+    }
+  } catch (e) {
+    console.error("Error detecting language:", e);
+  }
+  
+  return 'Unknown';
+}
+
+// Add this function before getSolutionCode()
+// Improve the extractLeetCodeSolution function to better handle hidden code
+function extractLeetCodeSolution() {
+  try {
+    // Method 1: Try to access Monaco editor model directly (most reliable)
+    if (window.monaco && window.monaco.editor) {
+      const editors = window.monaco.editor.getEditors();
+      if (editors && editors.length > 0) {
+        // This gets the ENTIRE code regardless of what's visible
+        const model = editors[0].getModel();
+        const fullValue = model.getValue();
+        if (fullValue && fullValue.trim().length > 0) {
+          console.log("Extracted complete code using Monaco model:", fullValue.length, "characters");
+          return fullValue;
+        }
+      }
+    }
+
+    // Method 2: Try to access editor through global variables (works in some LeetCode versions)
+    if (window.__NEXT_DATA__ && window.__NEXT_DATA__.props && 
+        window.__NEXT_DATA__.props.pageProps && 
+        window.__NEXT_DATA__.props.pageProps.question) {
+      const codeSnippets = window.__NEXT_DATA__.props.pageProps.question.codeSnippets;
+      const language = detectLeetCodeLanguage();
+      
+      if (codeSnippets && language) {
+        const normalizedLang = language.toLowerCase();
+        const snippet = codeSnippets.find(s => 
+          s.langSlug.toLowerCase().includes(normalizedLang) || 
+          normalizedLang.includes(s.langSlug.toLowerCase())
+        );
+        
+        if (snippet && snippet.code) {
+          console.log("Extracted code from __NEXT_DATA__:", snippet.code.length, "characters");
+          return snippet.code;
+        }
+      }
+    }
+
+    // Method 3: Try to find the hidden textarea that contains all code
+    const hiddenTextareas = document.querySelectorAll('textarea[class*="inputarea"]');
+    for (const textarea of hiddenTextareas) {
+      if (textarea.value && textarea.value.trim().length > 0) {
+        console.log("Extracted complete code using hidden textarea:", textarea.value.length, "characters");
+        return textarea.value;
+      }
+    }
+
+    // Method 4: Try to access through React component state
+    const editorElements = document.querySelectorAll('[data-cy="code-editor"], .monaco-editor');
+    for (const element of editorElements) {
+      // Try to find React fiber
+      for (const key in element) {
+        if (key.startsWith('__reactInternalInstance$') || key.startsWith('__reactFiber$')) {
+          let fiber = element[key];
+          while (fiber) {
+            if (fiber.stateNode && fiber.stateNode.editor) {
+              const model = fiber.stateNode.editor.getModel();
+              if (model && typeof model.getValue === 'function') {
+                const code = model.getValue();
+                console.log("Extracted complete code using React fiber:", code.length, "characters");
+                return code;
+              }
+            }
+            fiber = fiber.return;
+          }
+        }
+      }
+    }
+
+    // Method 5: Fall back to getCompleteCode function
+    const completeCode = getCompleteCode();
+    if (completeCode) {
+      console.log("Extracted complete code using getCompleteCode:", completeCode.length, "characters");
+      return completeCode;
+    }
+
+  } catch (e) {
+    console.error("Error extracting LeetCode solution:", e);
+  }
+  
+  return "// Could not extract code from LeetCode editor";
+}
+
+// Fix the message listener to ensure proper file extension handling
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  if (request.action === "getSolutionCode") {
+    // Immediately indicate we'll respond asynchronously
+    setTimeout(() => {
+      try {
+        const solution = getSolutionCode();
+        
+        // Ensure fileExtension is properly set based on language
+        if (solution.language) {
+          solution.fileExtension = getLanguageExtension(solution.language);
+          console.log("Using file extension:", solution.fileExtension, "for language:", solution.language);
+        }
+        
+        // Log the code length to verify we're sending the complete code
+        console.log("Sending solution with code length:", solution.code ? solution.code.length : 0);
+        
+        sendResponse(solution);
+      } catch (error) {
+        console.error("Error in getSolutionCode:", error);
+        sendResponse({
+          platform: 'Unknown',
+          problemName: 'Unknown Problem',
+          language: 'Unknown',
+          fileExtension: 'txt',
           code: "// Error: " + error.message,
           problemStatement: "Detection failed"
         });
